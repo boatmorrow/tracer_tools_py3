@@ -5,10 +5,13 @@ import pylab
 import pdb
 from scipy.interpolate import interp1d
 from scipy.integrate import trapz
-from matplotlib.mlab import find
 from matplotlib.dates import date2num
 import datetime
 import lmfit as lm
+
+def find(condition):
+    res, = np.nonzero(np.ravel(condition))
+    return res
 
 def make_conv_ts_tau(C_t,tracer,t_obs,tau_vec,lamba,disp_fac=.5,mod_type='exponential',trit_flag=0):
     '''Returns the vector of possible conentrations of tracer at observation time t_obs for a given age mixing type (mod_type), at

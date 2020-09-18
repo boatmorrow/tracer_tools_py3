@@ -22,7 +22,7 @@ def get_gas_conc(f='cfc_sf6_atm.txt'):
     df = df.drop(0)
     #Fractional Years!
     ix = pd.date_range(datetime.datetime(int(df.loc[df.index[0]]['Year']),1,1),datetime.datetime(int(df.loc[df.index[-1]]['Year']),1,1),freq='AS')
-    dt = pd.Timedelta(6,'M')
+    dt = pd.Timedelta(365/2,'D')
     ix = ix+dt
     df = df.set_index(ix)
     df = df.astype(N.float64)
