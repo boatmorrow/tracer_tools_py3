@@ -1,0 +1,16 @@
+tracer_tools is a python package with lots of utilities written for the use of Environmental Tracers in groundwater.  It is particularly useful for dissolved gas tracers including cfc's, sf6 and noble gases.  The code is poorly to moderately commented, and offered as is.  There are examples of some uses of the utilites in the example directory.  
+
+Python package requirements:
+numpy,scipy,matplotlib
+pandas
+lmfit
+iapws
+xlrd
+tkinter
+
+Install the above packages with your package manager if possible and make sure they are in your pythonpath.  
+
+Written by:
+W. Payton Gardner
+Dept. of Geosciences
+University of Montana
