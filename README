@@ -10,6 +10,7 @@ tkinter
 
 Install the above packages with your package manager if possible and make sure they are in your pythonpath.  
 
+INSTALLATION
 To install tracer_tools:
 
 Navigate to a directory where you would like tracer_tools to reside.
