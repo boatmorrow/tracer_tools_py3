@@ -20,15 +20,12 @@ Clone the git repository.  For example, using git at the terminal
 git clone https://github.com/boatmorrow/tracer_tools_py3
 
 
-Now, add the downloaded repository directory to your PYTHONPATH and PATH variables.  For example, using a bash terminal:
+This will add a directory with the tracer_tools repository.  Now, add the downloaded repository directory to your PYTHONPATH and PATH variables.  For example, using a bash terminal:
 
 export PYTHONPATH=path/to/repository:$PYTHONPATH 
 export PATH=path/to/repository:$PATH 
 
-
- 
-
 Written by:
 W. Payton Gardner
 Dept. of Geosciences
-University of Montana
+niversity of Montana
