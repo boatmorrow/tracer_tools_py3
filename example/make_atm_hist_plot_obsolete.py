@@ -5,6 +5,9 @@ make atmospheric input plots
 figure 1 will be atmospheric concentration
 figure 2 will be concentration in groundwater
 @author: wpgardn
+
+
+THIS ONE IS WAY OUT OF DATE
 """
 from pylab import *
 from MakeTotalTimeSeries import *

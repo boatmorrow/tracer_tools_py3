@@ -10,13 +10,83 @@ import pdb
 import subprocess
 
 
-def update_gas_conc(url='http://cdiac.ess-dive.lbl.gov/ftp/oceans/CFC_ATM_Hist/CFC_ATM_Hist_2015/CFC_atmospheric_histories_revised_2015_Table1.csv'):
-    '''Grab the latest and greates sf6 and cfc gas concentrations.  The URL will need to be updated periodically.  Data from:
+def download_hist_gas_conc(url='https://cdiac.ess-dive.lbl.gov/ftp/oceans/CFC_ATM_Hist/CFC_ATM_Hist_2015/CFC_atmospheric_histories_revised_2015_Table1.csv'):
+    '''Grab historical  sf6 and cfc gas concentrations.  The URL will need to be updated periodically.  Data from:
         Bullister, J.L. 2015. Atmospheric Histories (1765-2015) for CFC-11, CFC-12, CFC-113, CCl4, SF6 and N2O. NDP-095(2015). http://cdiac.ornl.gov/ftp/oceans/CFC_ATM_Hist/CFC_ATM_Hist_2015. Carbon Dioxide Information Analysis Center, Oak Ridge National Laboratory, US Department of Energy, Oak Ridge, Tennessee. doi: 10.3334/CDIAC/otg.CFC_ATM_Hist_2015.
         '''
-    subprocess.call(['curl','-o','cfc_sf6_atm.txt',url])
+    subprocess.call(['curl','-o','cfc_sf6_hist_atm.txt',url])
 
-def get_gas_conc(f='cfc_sf6_atm.txt'):
+def download_gas_conc_hats(sf6_url='ftp://ftp.cmdl.noaa.gov/hats/sf6/combined/HATS_global_SF6.txt',cfc11_url='ftp://ftp.cmdl.noaa.gov/hats/cfcs/cfc11/combined/HATS_global_F11.txt',cfc12_url='ftp://ftp.cmdl.noaa.gov/hats/cfcs/cfc12/combined/HATS_global_F12.txt',cfc113_url='ftp://ftp.cmdl.noaa.gov/hats/cfcs/cfc113/combined/HATS_global_F113.txt'):
+    '''Grab the latest and greates sf6 and cfc gas concentrations.  The URL will need to be updated periodically.  Data from: NOAA
+        Bullister, J.L. 2015. Atmospheric Histories (1765-2015) for CFC-11, CFC-12, CFC-113, CCl4, SF6 and N2O. NDP-095(2015). http://cdiac.ornl.gov/ftp/oceans/CFC_ATM_Hist/CFC_ATM_Hist_2015. Carbon Dioxide Information Analysis Center, Oak Ridge National Laboratory, US Department of Energy, Oak Ridge, Tennessee. doi: 10.3334/CDIAC/otg.CFC_ATM_Hist_2015.
+        '''
+    subprocess.call(['curl','-o','sf6_atm.txt',sf6_url])
+    subprocess.call(['curl','-o','cfc11_atm.txt',cfc11_url])
+    subprocess.call(['curl','-o','cfc12_atm.txt',cfc12_url])
+    subprocess.call(['curl','-o','cfc113_atm.txt',cfc113_url])
+
+def get_cfc113_gas_conc_hats(f='cfc113_atm.txt'):
+    df = pd.read_csv(f,header=0,comment='#',sep='\s+')
+    ix = pd.date_range(datetime.datetime(int(df.loc[df.index[0]]['HATS_F113_YYYY']),int(df.loc[df.index[0]]['HATS_F113_MM']),1),datetime.datetime(int(df.loc[df.index[- 1]]['HATS_F113_YYYY']),int(df.loc[df.index[-1]]['HATS_F113_MM']),1),freq='MS')
+    df = df.set_index(ix) ## sets index to the ix date range Year, Month
+    df = df[['HATS_NH_F113',  'HATS_SH_F113']]
+    df = df.resample('Y').mean()
+    df = df.rename(columns = {'HATS_NH_F113':'CFC113NH', 'HATS_SH_F113':'CFC113SH'})
+    df = pd.DataFrame(df)
+    df.to_csv('cfc113_atm.txt')
+    return df
+
+def get_cfc11_gas_conc_hats(f='cfc11_atm.txt'):
+    df = pd.read_csv(f ,header=0,comment='#',sep='\s+')
+    ix = pd.date_range(datetime.datetime(int(df.loc[df.index[0]]['HATS_F11_YYYY']),int(df.loc[df.index[0]]['HATS_F11_MM']),1),datetime.datetime(int(df.loc[df.index[- 1]]['HATS_F11_YYYY']),int(df.loc[df.index[-1]]['HATS_F11_MM']),1),freq='MS')
+    df = df.set_index(ix)
+    df = df[[ 'HATS_NH_F11',  'HATS_SH_F11']]
+    df = df.resample('Y').mean()
+    df = df.astype(N.float64)
+    df = df.rename(columns = {'HATS_NH_F11':'CFC11NH', 'HATS_SH_F11':'CFC11SH'})
+    df = pd.DataFrame(df)
+    df.to_csv('cfc11_atm.txt')
+    return df
+
+def get_cfc12_gas_conc_hats(f='cfc12_atm.txt'):
+    df = pd.read_csv(f,header=0,comment='#',sep='\s+')
+    ix = pd.date_range(datetime.datetime(int(df.loc[df.index[0]]['HATS_F12_YYYY']),int(df.loc[df.index[0]]['HATS_F12_MM']),1),datetime.datetime(int(df.loc[df.index[- 1]]['HATS_F12_YYYY']),int(df.loc[df.index[-1]]['HATS_F12_MM']),1),freq='MS')
+    df = df.set_index(ix)
+    df = df[[ 'HATS_NH_F12',  'HATS_SH_F12']]
+    df = df.resample('Y').mean()
+    df = df. astype(N.float64)
+    df = df.rename(columns = {'HATS_NH_F12':'CFC12NH', 'HATS_SH_F12':'CFC12SH'})
+    df = pd.DataFrame(df)
+    df.to_csv('cfc12_atm.txt')
+    return df
+
+def get_sf6_gas_conc_hats(f='sf6_atm.txt'):
+    df = pd.read_csv(f,header=0,comment='#',sep='\s+')
+    ix = pd.date_range(datetime.datetime(int(df.loc[df.index[0]]['GML_SF6_YYYY']),int(df.loc[df.index[0]]['GML_SF6_MM']),1),datetime.datetime(int(df.loc[df.index[- 1]]['GML_SF6_YYYY']),int(df.loc[df.index[-1]]['GML_SF6_MM']),1),freq='MS')
+    df = df.set_index(ix)
+    df = df[[ 'GML_NH_SF6',  'GML_SH_SF6']]
+    df = df.resample('Y').mean()
+    df = df.astype(N.float64)
+    df = df.rename(columns = {'GML_NH_SF6':'SF6NH', 'GML_SH_SF6':'SF6SH'})
+    df = pd.DataFrame(df)
+    df.to_csv('sf6_atm.txt')
+    return df
+
+def compile_hats():
+    '''makes a unifed gas concentration.'''
+    df_sf6 = get_sf6_gas_conc_hats()
+    df_cfc12 = get_cfc12_gas_conc_hats()
+    df_cfc11 = get_cfc11_gas_conc_hats()
+    df_cfc113 = get_cfc113_gas_conc_hats()
+    df_atm = pd.concat((df_cfc11,df_cfc12,df_cfc113,df_sf6),axis=1,join='outer')
+    #df_atm.interpolate(method='linear',limit_area='inside',inplace=True)
+    #df_atm.interpolate(method='pad',limit_direction='forward',inplace=True)
+    #df_atm.interpolate(method='bfill',limit_direction='backward',inplace=True)
+    df_atm.to_csv('cfc_sf6_update_atm.txt')
+    return df_atm
+    
+
+def get_hist_gas_conc(f='cfc_sf6_hist_atm.txt'):
     df = pd.read_csv(f,header=0)
     units = df.loc[0]
     df = df.drop(0)
@@ -26,7 +96,35 @@ def get_gas_conc(f='cfc_sf6_atm.txt'):
     ix = ix+dt
     df = df.set_index(ix)
     df = df.astype(N.float64)
+    df = df.resample('Y').mean()
+    df.drop(columns=['N2ONH', 'N2OSH','CCl4NH', 'CCl4SH','Year'],inplace=True)
     return df
+
+def create_atm_conc_csv():
+    '''downloads historic 1775-2015 and then updated 1995-202X data.  Concatenates in a semismart way to create a full
+    time series and saves as a csv.  Requires an internet connection.'''
+    #download historic (1775-2015ish)
+    download_hist_gas_conc()
+    #downoload updated (post 1995ish)
+    download_gas_conc_hats()
+    #have to compile the inividual datafiles from hats
+    df_atm = compile_hats()
+    #read history into datafram
+    df_atm_hist = get_hist_gas_conc()
+    #create full dataframe
+    df_atm_full = pd.concat((df_atm_hist,df_atm)).resample('Y').mean()
+    #write csv
+    df_atm_full.to_csv('cfc_sf6_atm.txt')
+    return
+
+def get_gas_conc(f='cfc_sf6_atm.txt'):
+    try:
+        df = pd.read_csv('cfc_sf6_atm.txt',index_col=0,parse_dates=True)
+    except FileNotFoundError:
+        create_atm_conc_csv()
+        df = pd.read_csv('cfc_sf6_atm.txt',index_col=0,parse_dates=True)
+    return df
+
 
 def vapor_pressure_atm(T):
     """returns the vapor pressure using nobe gas tools module - uses Antione equation.  See
