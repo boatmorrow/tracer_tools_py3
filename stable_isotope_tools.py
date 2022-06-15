@@ -214,5 +214,23 @@ def calc_alpha(df,gw_mean_conc,tracer='H2'):
     alpha = (SPd_w - gw_mean_conc*SP_w)/(gw_mean_conc*SP_s - SPd_s)
     return alpha
 
+def calc_distance(lat1,long1,lat2,long2):
+    '''dist = calc_dist(lat1,long1,lat2,long2) -
+       Calculates the distance between two points on the perfectly spherical earth using the Haversines forumula. Only          accurate to 0.5%, don't use for guiding missiles.
 
+         Requires:
+             the lat1,long1 of point 1 and lat2, long2 of point 2 in decimal degrees.  
+         Returns:
+             dist - the great circle distance in meters.'''
 
+    #radius of the earth
+    R = 6371e3 #meters
+    phi1 = lat1 * np.pi/180 #radians
+    phi2 = lat2 * np.pi/180
+    lamb1 = long1 * np.pi/180
+    del_phi = (phi1-phi2)*np.sin/180
+    del_lamb = (long1-long2)*np.sin/180
+    aa = np.sin(del_phi/2)**2 + np.cos(phi1)*np.cos(phi2)*np.sin(del_lamb/2)**2
+    c = 2 * np.atan2(np.sqrt(a),np.sqrt(1-a))
+    dist = R * c
+    return dist
