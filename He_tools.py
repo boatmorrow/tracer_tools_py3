@@ -53,7 +53,7 @@ def define_rock_type(rname='avg_upper_crust',porosity = .3):
     rock.density = rdensity;
     return rock
 
-def calcHe_prod_rate_whole_rock(rock,pth=0.08):
+def calcHe_prod_rate_whole_rock(rock):
     '''Return the He_prod_rate class for the given rock type rock'''
     HPR = He_prod_rate(rock=rock);
     U = HPR.rock_type.composition['U']*1.e6; #ppm
@@ -72,7 +72,7 @@ def calcHe_prod_rate_whole_rock(rock,pth=0.08):
     HPR.four_He_value = rfour_He_prod;
     return HPR
 
-def calcHe_prod_rate_refresh(HPR,pth=0.08):
+def calcHe_prod_rate_refresh(HPR):
     U = HPR.rock_type.composition['U']*1.e6; #ppm
     Th = HPR.rock_type.composition['Th']*1.e6; #ppm
     Na = HPR.rock_type.composition['Na']*1.e2; #percent
@@ -92,7 +92,7 @@ def calc_4He_prod_U_Th(U,Th):
     '''calculates all the production rates for a helium given a U and Th value and assuming average
     crustal composition for everything else.  Returns the Helium_prod_rate class'''
     rock = define_rock_type(rname='avg_upper_crust');
-    HPR = calcHe_prod_rate_whole_rock(rock,pth=0.08)
+    HPR = calcHe_prod_rate_whole_rock(rock)
     rfour_He_prod = (3.115e6+1.272e5)*U + 7.710e5*Th;  #atoms/g_rock/yr
     HPR.units = 'atoms/g_rock/yr';
     HPR.four_He_value = rfour_He_prod;
@@ -101,7 +101,7 @@ def calc_4He_prod_U_Th(U,Th):
 def switch_units(HPR,units_desired='atoms/g_rock/yr'):
     '''Convert the units for the helium production rate HPR.  Units need be in string 'He_type/vm/t' and I will update this as we go.  Figure's out what units
     we're in, and what we want, and then switches em.  Assumes complete transfer from rock to water'''
-    calcHe_prod_rate_refresh(HPR,pth=0.08);
+    calcHe_prod_rate_refresh(HPR);
 #    pdb.set_trace();
     current_units = HPR.units;
     atoms_to_mols = 1./6.0221415e23;
@@ -172,7 +172,7 @@ def switch_units(HPR,units_desired='atoms/g_rock/yr'):
                 b = 'kg_h2o';
             
         else:
-            calcHe_prod_rate_refresh(pth=0.08);
+            calcHe_prod_rate_refresh();
             print('not implemented yet no conversion converted back g_rock. try again now')
             b = 'g_rock'
         
@@ -183,7 +183,7 @@ def switch_units(HPR,units_desired='atoms/g_rock/yr'):
                 HPR.four_He_value = HPR.four_He_value/yr_to_s;
                 c = 's';
         else:
-            calcHe_prod_rate_refresh(pth=0.08);
+            calcHe_prod_rate_refresh();
             print('not implemented yet no conversion converted back yr. try again now')
             c = 'yr';
             
