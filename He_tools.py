@@ -23,8 +23,8 @@ class rock_type:
         self.composition = composition
         self.porosity = porosity
         self.density = density
-        self.HPR = He_prod_rate()
-        self.APR = Ar_prod_rate()
+        self.HPR = self.He_prod_rate()
+        self.APR = self.Ar_prod_rate()
 
     class He_prod_rate:
         '''the production rate for a given rock composition of 3he 4he in given units'''
@@ -35,7 +35,7 @@ class rock_type:
     
     class Ar_prod_rate:
         '''The radiogenic production rate for a given rock compoosition.'''
-        def __init__(self)
+        def __init__(self):
             self.Ar40_value = 0
             self.Ar39_value = 0
             self.Ar40_accum = 0
@@ -44,8 +44,8 @@ class rock_type:
     def switch_units(self,units_desired='atoms/g_rock/yr'):
         '''Convert the units for the helium production rate HPR.  Units need be in string 'He_type/vm/t' and I will update this as we go.  Figure's out what units
         we're in, and what we want, and then switches em.  Assumes complete transfer from rock to water'''
-        calcHe_prod_rate_whole_rock() #switch back to default
-        calcAr_prod_rate_whole_rock()
+        self.calcHe_prod_rate_whole_rock() #switch back to default
+        self.calcAr_prod_rate_whole_rock()
         current_units = self.HPR.units
         atoms_to_mols = 1./6.0221415e23;
         atoms_to_ccSTP = 22414./6.0221415e23;
@@ -80,7 +80,8 @@ class rock_type:
                     self.HPR.three_He_value = self.HPR.three_He_value*atoms_4He_to_kg;
                     self.HPR.four_He_value = self.HPR.four_He_value*atoms_3He_to_kg;
                     self.APR.Ar40_value = self.APR.Ar40_value*atoms_40Ar_to_kg
-                    self.APR.Ar39_value = self.APR.Ar39_value*atoms_40Ar_to_kg
+                    self.APR.Ar39_value = self.APR.Ar39_value*atoms_39Ar_to_kg
+                    self.APR.Ar40_accum = self.APR.Ar40_accum*atoms_40Ar_to_kg
                     a = 'kg_he';
                 if He_type_wanted == 'ccSTP':
                     #pdb.set_trace();
@@ -88,6 +89,7 @@ class rock_type:
                     self.HPR.four_He_value = self.HPR.four_He_value*atoms_to_ccSTP;
                     self.APR.Ar39_value = self.APR.Ar39_value*atoms_to_ccSTP;
                     self.APR.Ar40_value = self.APR.Ar40_value*atoms_to_ccSTP;
+                    self.APR.Ar40_accum = self.APR.Ar40_accum*atoms_to_ccSTP;
                     a = 'ccSTP'
                 if He_type_wanted == 'mol':
                    #pdb.set_trace();
@@ -95,43 +97,55 @@ class rock_type:
                    self.HPR.four_He_value = self.HPR.four_He_value*atoms_to_mols;
                    self.APR.Ar39_value = self.APR.Ar39_value*atoms_to_mols;
                    self.APR.Ar40_value = self.APR.Ar40_value*atoms_to_mols;
+                   self.APR.Ar40_accum = self.APR.Ar40_accum*atoms_to_mols;
                    a = 'mol' 
                 
             else:
-                print('not implemented yet no converted back to atoms. try again now')
+                calcHe_prod_rate_whole_rock();
+                calcAr_prod_rate_whole_rock()
+                print('not implemented yet, converted back to atoms.')
                 a = 'atoms';
             
             if vm_current == 'g_rock':
                 b = 'g_rock';
                 if vm_wanted == 'm3_rev':
+                    print('warning - evenly distributes the produced gas between rock and porespace')
                     self.HPR.three_He_value = self.HPR.three_He_value/g_rock_to_cc_rock/cc_to_m3/m3_rock_to_m3_rev;
                     self.HPR.four_He_value = self.HPR.four_He_value/g_rock_to_cc_rock/cc_to_m3/m3_rock_to_m3_rev;
                     self.APR.Ar39_value = self.APR.Ar39_value/g_rock_to_cc_rock/cc_to_m3/m3_rock_to_m3_rev;
                     self.APR.Ar40_value = self.APR.Ar40_value/g_rock_to_cc_rock/cc_to_m3/m3_rock_to_m3_rev;
+                    self.APR.Ar40_accum = self.APR.Ar40_accum/g_rock_to_cc_rock/cc_to_m3/m3_rock_to_m3_rev;
                     b = 'm3_rev';
                 if vm_wanted == 'm3_rock':
                     self.HPR.three_He_value = self.HPR.three_He_value/g_rock_to_cc_rock/cc_to_m3;
                     self.HPR.four_He_value = self.HPR.four_He_value/g_rock_to_cc_rock/cc_to_m3;
                     self.APR.Ar39_value = self.APR.Ar39_value/g_rock_to_cc_rock/cc_to_m3;
                     self.APR.Ar40_value = self.APR.Ar40_value/g_rock_to_cc_rock/cc_to_m3;
+                    self.APR.Ar40_accum = self.APR.Ar40_accum/g_rock_to_cc_rock/cc_to_m3;
                     b = 'm3_rock';
                 if vm_wanted == 'm3_h2o':
+                    print('warning - assumes all produced gas goes to the water phase')
                     self.HPR.three_He_value = self.HPR.three_He_value/g_rock_to_cc_rock/cc_to_m3/m3_rock_to_m3_rev/m3_rev_to_m3_water;
                     self.HPR.four_He_value = self.HPR.four_He_value/g_rock_to_cc_rock/cc_to_m3/m3_rock_to_m3_rev/m3_rev_to_m3_water;
                     self.APR.Ar39_value = self.APR.Ar39_value/g_rock_to_cc_rock/cc_to_m3/m3_rock_to_m3_rev/m3_rev_to_m3_water;
                     self.APR.Ar40_value = self.APR.Ar40_value/g_rock_to_cc_rock/cc_to_m3/m3_rock_to_m3_rev/m3_rev_to_m3_water;
+                    self.APR.Ar40_accum = self.APR.Ar40_accum/g_rock_to_cc_rock/cc_to_m3/m3_rock_to_m3_rev/m3_rev_to_m3_water;
                     b = 'm3_aq';
                 if vm_wanted == 'g_h2o':
+                    print('warning - assumes all produced gas goes to the water phase')
                     self.HPR.three_He_value = self.HPR.three_He_value/g_rock_to_cc_rock/m3_rock_to_m3_rev/m3_rev_to_m3_water/cc_water_to_g_water;
                     self.HPR.four_He_value = self.HPR.four_He_value/g_rock_to_cc_rock/m3_rock_to_m3_rev/m3_rev_to_m3_water/cc_water_to_g_water;
                     self.APR.Ar39_value = self.APR.Ar39_value/g_rock_to_cc_rock/m3_rock_to_m3_rev/m3_rev_to_m3_water/cc_water_to_g_water;
                     self.APR.Ar40_value = self.APR.Ar40_value/g_rock_to_cc_rock/m3_rock_to_m3_rev/m3_rev_to_m3_water/cc_water_to_g_water;
+                    self.APR.Ar40_accum = self.APR.Ar40_accum/g_rock_to_cc_rock/m3_rock_to_m3_rev/m3_rev_to_m3_water/cc_water_to_g_water;
                     b = 'g_h2o';
                 if vm_wanted == 'kg_h2o':
+                    print('warning - assumes all produced gas goes to the water phase')
                     self.HPR.three_He_value = self.HPR.three_He_value/g_rock_to_cc_rock/m3_rock_to_m3_rev/m3_rev_to_m3_water/cc_water_to_g_water*1000.;
                     self.HPR.four_He_value = self.HPR.four_He_value/g_rock_to_cc_rock/m3_rock_to_m3_rev/m3_rev_to_m3_water/cc_water_to_g_water*1000.;
                     self.APR.Ar39_value = self.APR.Ar39_value/g_rock_to_cc_rock/m3_rock_to_m3_rev/m3_rev_to_m3_water/cc_water_to_g_water*1000.;
                     self.APR.Ar40_value = self.APR.Ar40_value/g_rock_to_cc_rock/m3_rock_to_m3_rev/m3_rev_to_m3_water/cc_water_to_g_water*1000.;
+                    self.APR.Ar40_accum = self.APR.Ar40_accum/g_rock_to_cc_rock/m3_rock_to_m3_rev/m3_rev_to_m3_water/cc_water_to_g_water*1000.;
                     b = 'kg_h2o';
                 
             else:
@@ -160,7 +174,7 @@ class rock_type:
         self.APR.units = units_current;
         
     def defined_rock_type(self,rname='avg_upper_crust'):
-        '''Defines a rock_type composition, and production rates.  Production rates are given by the He_prod_rate class
+        '''Defines a rock_type composition in mass fraction, and production rates.  Production rates are given by the He_prod_rate class
         and are in the default units of atoms/g_rock/yr. A rock type needs a composition of at least 
         U, Th, Li, Na, Mg, Al, Si, C, and Li capture probablility and total capture
         probability.  The capture probability can be calculated from the composition and cross sections in principal.'''
@@ -192,7 +206,7 @@ class rock_type:
         C = self.composition['C']*1.e2;  #percent
         neut_flux = 0.01 * U * (13.8*Na + 5.4*Mg + 5.0*Al + 1.31*Si + 2.0*C) + 0.01 * Th * \
         (6.0*Na + 2.45*Mg + 2.55*Al + 0.56*Si + 0.83*C) + 0.4788*U; #total neutron flux
-        rthree_He_prod = neut_flux*(self.rock_type.li_capt_prob/self.rock_type.total_capt_prob); #atoms/g_rock/yr
+        rthree_He_prod = neut_flux*(self.li_capt_prob/self.total_capt_prob); #atoms/g_rock/yr
         rfour_He_prod = (3.115e6+1.272e5)*U + 7.710e5*Th;  #atoms/g_rock/yr
         self.HPR.units = 'atoms/g_rock/yr';
         self.HPR.three_He_value = rthree_He_prod;
@@ -202,23 +216,25 @@ class rock_type:
         '''calculate the modern day production rate for a given rock type.'''
         lamma_e = 0.581e-10
         lamma_k = 5.463e-10
-        lamma = lamma_e+lamma_k
-        Ak = 39.964
+        Ma = 39.964
         Na = 6.023e23
         Xk = 1.176e-4
-        F = Xk*1e-6*Na/Ak*lamma_e/lamma_k*(np.exp(lamma*1)-1)
+        F = Xk*Na/Ma*lamma_e/lamma_k*(exp(lamma_k*1)-1)
         self.APR.Ar40_value = self.composition['K']*F 
         self.APR.units ='atoms/g_rock/yr'
 
     def calcAr40_accum(self,age):
-        '''calculate the accumulated 40Ar for a given rock for a given age'''
-        lamma_e = 0.581e-10
-        lamma_k = 5.463e-10
+        '''calculate the accumulated 40Ar for a given rock for a given age in years.  
+            Ar amount and volume can be changed but the age must be in years.'''
+        if self.APR.units.split('/')[2] != 'yr':
+            print('accumulation only works for age in years')
+        lamma_e = 0.581e-10 #1/yr
+        lamma_k = 5.463e-10 #1/yr
         lamma = lamma_e+lamma_k
-        Ak = 39.964
+        Ma = 39.964
         Na = 6.023e23
         Xk = 1.176e-4
-        F = Xk*1e-6*Na/Ak*lamma_e/lamma_k*(np.exp(lamma*age)-1)
+        F = Xk*Na/Ma*lamma_e/lamma_k*(exp(lamma_k*age)-1)
         self.APR.Ar40_accum = self.composition['K']*F 
 
 def calcHe_prod_rate_refresh(rock_type):
