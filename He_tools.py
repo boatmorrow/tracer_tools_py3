@@ -211,6 +211,7 @@ class rock_type:
         self.HPR.units = 'atoms/g_rock/yr';
         self.HPR.three_He_value = rthree_He_prod;
         self.HPR.four_He_value = rfour_He_prod;
+        self.HPR.neut_flux = neut_flux
 
     def calcAr_prod_rate_whole_rock(self):
         '''calculate the modern day production rate for a given rock type.'''
