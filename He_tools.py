@@ -14,8 +14,6 @@ import pandas as pd
 import scipy.integrate as intgrt
 from scipy.interpolate import interp1d
 import importlib.resources as pkg_resources
-from . import data
-
 
 class rock_type:
     '''this will be a way to pass around different rock typs'''
@@ -451,7 +449,6 @@ class rock_type:
             self.calc_phi_n()
         vflag=1
         #read in spectral data
-        pdb.set_trace()
         inp_file = (pkg_resources.files(data) / 'Neutron_flux_Normalized.csv')
         with inp_file.open("rt") as f:
             dfs = pd.read_csv(f)
