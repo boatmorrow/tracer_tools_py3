@@ -56,8 +56,15 @@ class rock_type:
             self.units = units;
     
     class Ar_prod_rate:
-        '''The subsurface production rate for a given rock compoosition.'''
+        '''The subsurface production rate for a given rock compoosition.
+                Elevation in meters, 
+                inclination in degrees positive east,
+                depth in rock column - g/cm2, 
+        '''
         def __init__(self):
+            self.elev=0
+            self.depth=0
+            self.incl=0
             self.Ar40_value = 0
             self.Ar39_value = 0
             self.Ar40_accum = 0
@@ -235,7 +242,7 @@ class rock_type:
         self.porosity = rporosity
         self.density = rdensity
     
-    def calcPn_alpha(self,depth):
+    def calcPn_alpha(self):
     
         
         '''Code taken from publication:
@@ -311,16 +318,13 @@ class rock_type:
         
         Sn = nr.sum() #neutrons/kg_rock/yr
         try:
-            len(depth)
-            self.Pn_alpha = Sn/1000.*np.ones(len(depth))
+            len(self.APR.depth)
+            self.Pn_alpha = Sn/1000.*np.ones(len(self.APR.depth))
         except TypeError:
             self.Pn_alpha=Sn/1000. #neutrons/g_rock/yr #hand shape issues
 
-    def calcPn_ev(self,elev,inclination,depth,solar='avg',Pno=2000):
+    def calcPn_ev(self,solar='avg',Pno=2000):
         '''Estimates nuetron production from high-enery cosmic particles. 
-                Elevation in meters, 
-                inclination in degrees positive east,
-                depth in rock column - g/cm2, 
                 solar activity one of min, max or average.
                 Pno surface production at 70 degrees and 0 masl - 2000n/g_rock/yr JFM
             returns Pn - neutron production in n/g_rock/yr'''
@@ -335,7 +339,7 @@ class rock_type:
                              [90,1,1,164]])
         
         #declination effect
-        G = inclination*np.pi/180
+        G = self.APR.incl*np.pi/180
         lamma_m = np.arctan(0.5*np.tan(G))*180/np.pi
         if solar=='min':
             K_L = np.interp(lamma_m,kl_array[:,0],kl_array[:,1])
@@ -347,20 +351,20 @@ class rock_type:
         Lamma_na = np.interp(lamma_m,kl_array[:,0],kl_array[:,3])
         
         #elevation effect
-        d_atm = ng.lapse_rate(elev)*1e9/9.8/10 #g/cm2
+        d_atm = ng.lapse_rate(self.APR.elev)*1e9/9.8/10 #g/cm2
         d_sl = ng.lapse_rate(0)*1e9/9.8/10 #g/cm2
         K_E = np.exp(-(d_atm-d_sl)/Lamma_na) 
         
         #depth in rock
         Lamma_nr = 150 #g/cm2
-        K_d = np.exp(-depth/Lamma_nr)
+        K_d = np.exp(-self.APR.depth/Lamma_nr)
         Pn = K_E*K_L*K_d*Pno
         self.Pn_ev=Pn
     
-    def calcPn_mu(self,z,K_L=1,K_E=1):
+    def calcPn_mu(self,K_L=1,K_E=1):
         ''''calculate the neutron flux in n/g_rock/yr for:
                 the given rock type at the given depth in rock column (z) in g/cm2. '''
-    
+        z = self.APR.depth    
         #calculate stopping rate at depth z
         muk = np.array([[0.8450,1029.6],
                [-0.05,161.2],
@@ -422,7 +426,7 @@ class rock_type:
         self.HPR.four_He_value = rfour_He_prod;
         self.HPR.neut_flux = neut_flux
 
-    def calcAr_prod_rate_whole_rock(self,elev,inclination,depth,solar='avg',calc_flux=1):
+    def calcAr_prod_rate_whole_rock(self,solar='avg',calc_flux=1):
         '''calculate the modern day production rate for a given rock type.  
         The 39Ar production for a given rock type at the given 
         at the elevation (masl), inclination (magnetic), depth (g/cm2), and 
@@ -435,18 +439,18 @@ class rock_type:
         F = Xk*Na/Ma*lamma_e/lamma_k*(np.exp(lamma_k*1)-1)
         self.APR.Ar40_value = self.composition['K']*F 
         #pdb.set_trace()
-        self.calc39Ar_prod(elev, inclination, depth,solar=solar,calc_flux=calc_flux)
+        self.calc39Ar_prod(solar=solar,calc_flux=calc_flux)
         self.APR.units ='atoms/g_rock/yr'
     
-    def calcP39Ar_n(self,depth,elev,inclination,solar='avg',calc_flux=1):
+    def calcP39Ar_n(self,solar='avg',calc_flux=1):
         '''calculate the total 39Ar production from neutrons fora all channels.
         Will calculate neutron production and flux first if desired, for each channel 
         for the given rock type at the depth in g/cm2, elevation (masl) and magnetic
         inclination.'''
         if calc_flux:
-            self.calcPn_ev(elev,inclination,depth,solar=solar)
-            self.calcPn_mu(depth)
-            self.calcPn_alpha(depth)
+            self.calcPn_ev(solar=solar)
+            self.calcPn_mu()
+            self.calcPn_alpha()
             self.calc_phi_n()
         vflag=1
         #read in spectral data
@@ -530,10 +534,10 @@ class rock_type:
         self.APR.units ='atoms/g_rock/yr'
     
     #calculate muon production rate
-    def calcP39Ar_mu(self,depth,K_L=1,K_E=1):
+    def calcP39Ar_mu(self,K_L=1,K_E=1):
         ''''calculate the 39Ar production in atoms/g_rock/yr for:
                 the given rock type at the given depth in rock column (z) in g/cm2. '''
-    
+        depth = self.APR.depth 
         #calculate stopping rate at depth z
         muk = np.array([[0.8450,1029.6],
                [-0.05,161.2],
@@ -573,15 +577,15 @@ class rock_type:
         # P39Ar
         self.APR.P39Ar_mu = K_L*K_E*I_muz*Y_Ar
     
-    def calc39Ar_prod(self,elev,inclination,depth,solar='avg',calc_flux=1):
+    def calc39Ar_prod(self,solar='avg',calc_flux=1):
         ''' calculate the 39Ar production for a given rock type at the given 
         elevation, inclination, depth, solar activity.  Will only use location and 
         depth to calculate neutron production and flux is calc_flux != 0.
         '''
         #calc the neutron production
-        self.calcP39Ar_n(depth,elev,inclination,solar=solar,calc_flux=calc_flux)
+        self.calcP39Ar_n(solar=solar,calc_flux=calc_flux)
         #calc the muon production
-        self.calcP39Ar_mu(depth)
+        self.calcP39Ar_mu()
         self.APR.Ar39_value=self.APR.P39Ar_n+self.APR.P39Ar_mu
         
     

@@ -25,10 +25,13 @@ He = 0
 Hd = 80
 depth = 0.5#mwe
 depth = 0.5*100 #1000k/m3 * 1/10 kg/m2 -> g/cm2
-Pn = UC.calcPn_ev(He, Hd, depth)
+UC.APR.depth=depth
+UC.APR.elev=He
+UC.APR.incl=Hd
+Pn = UC.calcPn_ev()
 print('P_n = %1.2f n/g_rock/yr'%UC.Pn_ev)
 
-UC.calcAr_prod_rate_whole_rock(He, Hd, depth)
+UC.calcAr_prod_rate_whole_rock()
 print('Total 39Ar production rate is %1.3g,\
  from hadronic flux %1.3g,\
  from muon adsorb. is %1.3g'\
@@ -39,7 +42,10 @@ He = 100 #elevation
 Hd = 65 #magnetic inclination
 depth_r = np.linspace(0,50) #m
 depth_rw = depth_r*250 #assuming 2500kg/m3 rock density
-UC.calcAr_prod_rate_whole_rock(He, Hd, depth_rw)
+UC.APR.depth=depth_rw
+UC.APR.elev=He
+UC.APR.incl=Hd
+UC.calcAr_prod_rate_whole_rock()
 
 #plot
 fig,ax = plt.subplots()

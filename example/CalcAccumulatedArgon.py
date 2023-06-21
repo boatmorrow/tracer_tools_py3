@@ -1,5 +1,5 @@
-import noble_gas_tools as ng
-import He_tools as He
+import tracer_tools.noble_gas_tools as ng
+import tracer_tools.He_tools as He
 import numpy as np
 
 #create He tools rock type
@@ -9,7 +9,13 @@ UC = He.rock_type()
 UC.defined_rock_type() #upper crust is the default and only defined rock type for now
 
 #calcuate Helium production rate
-UC.calcHe_prod_rate_whole_rock() #calculates 4He and 3He production
+He = 100 #elevation
+Hd = 65 #magnetic inclination
+depth = 0.5#mwe
+depth = 0.5*100 #1000k/m3 * 1/10 kg/m2 -> g/cm2
+UC.APR.depth=depth
+UC.APR.incl=Hd
+UC.APR.elev=He
 
 print('He4 production rate is %1.3g '%UC.HPR.four_He_value, UC.HPR.units)
 
