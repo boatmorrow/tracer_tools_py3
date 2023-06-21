@@ -14,6 +14,7 @@ import pandas as pd
 import scipy.integrate as intgrt
 from scipy.interpolate import interp1d
 import importlib.resources as pkg_resources
+import os
 
 class rock_type:
     '''this will be a way to pass around different rock typs'''
@@ -450,15 +451,12 @@ class rock_type:
         vflag=1
         #read in spectral data
         inp_file = os.path.join(os.path.dirname(__file__), 'Neutron_flux_Normalized.csv')
-        with inp_file.open("rt") as f:
-            dfs = pd.read_csv(f)
+        dfs = pd.read_csv(inp_file)
         #read in the cross section
         inp_file = os.path.join(os.path.dirname(__file__), 'K39_XS.csv')
-        with inp_file.open("rt") as f:
-            K39xsec = pd.read_csv(f)
+        K39xsec = pd.read_csv(inp_file)
         inp_file = os.path.join(os.path.dirname(__file__), 'Ca42_XS.csv')
-        with inp_file.open("rt") as f:
-            Ca42xsec = pd.read_csv(f)
+        Ca42xsec = pd.read_csv(inp_file)
         
         #Potassium production
         #truncate to the cross section spectrum

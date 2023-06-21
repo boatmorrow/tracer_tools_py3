@@ -9,10 +9,10 @@ Test He_tools 39Ar production
 """
 
 import numpy as np
-from noble_gas_tools import lapse_rate
+from tracer_tools.noble_gas_tools import lapse_rate
 import pdb
 import matplotlib.pyplot as plt
-import He_tools as he
+import tracer_tools.He_tools as he
 
 
 
@@ -53,3 +53,4 @@ ax.set_xlim(10**-4,10**2)
 ax.set_xlabel('atoms/g_rock/yr')
 ax.set_ylabel('Depth (m)')
 ax.legend()
+plt.show()
