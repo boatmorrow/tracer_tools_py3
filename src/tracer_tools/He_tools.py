@@ -76,6 +76,7 @@ class rock_type:
             self.P39Ar_mu = 0
             self.P39Ar_value = 0
             self.P39Ar_accum = 0
+            self.Cseq = 0
             self.units = 'atoms/g_rock/yr'
             self.mu_dict = {'C':[.090,0.76], #[fraction of muons adsorbed by nucleus, average neutron yield per mu]
                              'O':[.223,.8],
@@ -238,6 +239,18 @@ class rock_type:
                             'C':3.24e-3,'Th':1.07e-5,'K':2.82e-2,\
                             'O':4.75e-1,'F':5.57e-4,'Ca':3e-2, \
                             'Ti':3e-3,'Fe':3.15e-2} #Ballanine and Burnard Reviews in Geochem, pg 488, flourine taken from Sramek 2017
+            rli_capt_prob = 2.05e-4;  #Hardcoded from Ballentine - at some point this should be calculated from the composition
+            rtotal_capt_prob = 9.79e-3;
+            rdensity = 2.7 # g/cc
+            rporosity = 0.1; 
+        if rname == 'VariscanGranite':
+            #composition mass fractions - Siebel 1995
+            #1. W. Siebel, Constraints on Variscan granite emplacement in north-east Bavaria, Germany: further clues from a petrogenetic study of the Mitterteich granite. Geol. Rundschau 84, 384–398 (1995).
+            comp_dict = {'Li':2.5e-4,'U':15e-6,'Na':3.11e-2,\
+                            'Mg':0.33e-2,'Al':14.44e-2,'Si':.7241,\
+                            'C':3.24e-3,'Th':22e-6,'K':5.06e-2,\
+                            'O':4.75e-1,'F':5.57e-4,'Ca':1e-2, \
+                            'Ti':3e-3,'Fe':1.9e-2} #Ballanine and Burnard Reviews in Geochem, pg 488, flourine taken from Sramek 2017
             rli_capt_prob = 2.05e-4;  #Hardcoded from Ballentine - at some point this should be calculated from the composition
             rtotal_capt_prob = 9.79e-3;
             rdensity = 2.7 # g/cc
@@ -477,8 +490,10 @@ class rock_type:
         Phi_n_mu = intgrt.trapezoid(dfs.norm_phi_n_mu_avg,dfs['Energy [MeV]'])
         Phi_n_alpha = intgrt.trapezoid(dfs.norm_phi_n_alpha_avg,dfs['Energy [MeV]'])
         #calculate normalized spectrum
-        phibar_mu = dfst.norm_phi_n_mu_avg/Phi_n_mu
-        phibar_alpha = dfst.norm_phi_n_alpha_avg/Phi_n_alpha
+        #phibar_mu = dfst.norm_phi_n_mu_avg/Phi_n_mu
+        phibar_mu = dfst.norm_phi_n_mu_avg
+        #phibar_alpha = dfst.norm_phi_n_alpha_avg/Phi_n_alpha
+        phibar_alpha = dfst.norm_phi_n_alpha_avg
         #spectral phi_e for each depth
         try:
             len(self.phi_n_mu)
@@ -700,12 +715,30 @@ class rock_type:
         unitsi = self.APR.units
         self.switch_units('atoms/g_rock/yr')
         #really this should always change the units to atoms/g_rock/yr, and then switch back
-        lamma = 269.2161339422 #yr-1
+        t_half = 269.2161339422 #yr-1
+        #pdb.set_trace()
+        lamma = np.log(2)/t_half
         P = self.APR.Ar39_value
-        N = P/lamma+(Co-P/lamma)*np.exp(-lamma*age)
-        self.APR.Ar39_accum=N
-        self.switch_units(unitsi)
-        
+        try:
+            if len(P) != 1:
+                if len(Co) != 1:
+                    if len(age) !=1:                  
+                        print('Non-uniform production rate, age, and concentration. Results are not to be trusted')
+        except TypeError:
+            N = P/lamma+(Co-P/lamma)*np.exp(-lamma*age)
+    #N = P/lamma+np.outer((Co-P/lamma),np.exp(-lamma*age))
+            self.APR.Ar39_accum=N
+            self.switch_units(unitsi)
+    
+    def calc39ArSecEqul(self):
+        '''Calculate the secular equilibrium concentration.'''
+        unitsi = self.APR.units
+        self.switch_units('atoms/g_rock/yr')
+        t_half = 269.2161339422 #yr-1
+        lamma = np.log(2)/t_half
+        P = self.APR.Ar39_value
+        Cseq = P/lamma
+        self.APR.Cseq = Cseq
 
 def calcHe_prod_rate_refresh(rock_type):
     U = rock_type.composition['U']*1.e6; #ppm

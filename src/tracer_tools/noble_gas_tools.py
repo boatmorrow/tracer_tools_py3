@@ -47,7 +47,15 @@ atm_std = { 'N2'   : 0.781,
 
 def get_atm_mol_frac(gas):
     '''return the standard mole fraction for the gas and/or isotope of interest.  Ratios taken from Porcelli et al 2002.'''
-    pp_i = atm_std[gas]
+    if gas == 'Ar39':
+        mod_act_ratio=1.78e-6;  #Bq per cc(STP)Ar in atmosphere - from Cook book pg 382
+        ar_decay_const=7.06e-6; #day^-1 cook book
+        ar_decay_const=ar_decay_const/(24*60*60); #seconds
+        mass_ar39 = activity2mass(ar_decay_const,39.0,mod_act_ratio);  #per cc(STP)Ar
+        mass_ratio_ar39=mass_ar39*22414./39.95  #mass per mass
+        pp_i = mass_ratio_ar39
+    else:
+        pp_i = atm_std[gas]
     return pp_i
 
 def solubility(gas,T,S=0):
