@@ -344,7 +344,7 @@ class rock_type:
         except TypeError:
             self.Pn_alpha=Sn/1000. #neutrons/g_rock/yr #hand shape issues
 
-    def calcPn_ev(self,solar='avg',Pno=2000):
+    def calcPn_ev_JFM(self,solar='avg',Pno=2000):
         '''Estimates nuetron production from high-enery cosmic particles. 
                 solar activity one of min, max or average.
                 Pno surface production at 70 degrees and 0 masl - 2000n/g_rock/yr JFM
@@ -382,6 +382,19 @@ class rock_type:
         Pn = K_E*K_L*K_d*Pno
         self.Pn_ev=Pn
     
+    def calcPn_ev(self,inp_file = os.path.join(os.path.dirname(__file__), 'HeidelbergNeutronFlux.csv')):
+        '''calculates the production using the excel worksheet spectral flux and equation
+        17 from Musy.  inp_file is the spectral energy flux, right now uses
+        ELEVATION AND LATTITUDE OF HEIDELBERG RIGHT NOW!'''
+        dfsc = pd.read_csv(inp_file)
+        Phi_n = intgrt.trapezoid(dfsc['Neutron'],dfsc['Energy'])
+        Pno = Phi_n/160*3.15e7
+        #depth in rock
+        Lamma_nr = 150 #g/cm2
+        K_d = np.exp(-self.APR.depth/Lamma_nr)
+        Pn = K_d*Pno
+        self.Pn_ev=Pn
+        
     def calcPn_mu(self,K_L=1,K_E=1):
         ''''calculate the neutron flux in n/g_rock/yr for:
                 the given rock type at the given depth in rock column (z) in g/cm2. '''
@@ -463,13 +476,14 @@ class rock_type:
         self.calc39Ar_prod(solar=solar,calc_flux=calc_flux)
         self.APR.units ='atoms/g_rock/yr'
     
-    def calcP39Ar_n(self,solar='avg',calc_flux=1):
+    def calcP39Ar_n(self,solar='avg',calc_flux=1,nfile=os.path.join(os.path.dirname(__file__), 'HeidelbergNeutronFlux.csv')):
         '''calculate the total 39Ar production from neutrons fora all channels.
         Will calculate neutron production and flux first if desired, for each channel 
         for the given rock type at the depth in g/cm2, elevation (masl) and magnetic
         inclination.'''
         if calc_flux:
-            self.calcPn_ev(solar=solar)
+            #self.calcPn_ev_JFM(solar=solar)
+            self.calcPn_ev(inp_file=nfile)
             self.calcPn_mu()
             self.calcPn_alpha()
             self.calc_phi_n()
@@ -477,6 +491,10 @@ class rock_type:
         #read in spectral data
         inp_file = os.path.join(os.path.dirname(__file__), 'Neutron_flux_Normalized.csv')
         dfs = pd.read_csv(inp_file)
+        #read in cosmic spectral flux from excel sheet for heidelberg lattitude and elevation
+        inp_file = os.path.join(os.path.dirname(__file__), 'HeidelbergNeutronFlux.csv')
+        dfsc = pd.read_csv(inp_file)
+        
         #read in the cross section
         inp_file = os.path.join(os.path.dirname(__file__), 'K39_XS.csv')
         K39xsec = pd.read_csv(inp_file)
@@ -486,29 +504,33 @@ class rock_type:
         #Potassium production
         #truncate to the cross section spectrum
         dfst=dfs[dfs['Energy [MeV]']<K39xsec['Energy [MeV]'].max()] #for K
+        dfstc = dfsc[dfsc['Energy']<K39xsec['Energy [MeV]'].max()] #for K
         #calculate normalization
         Phi_n_mu = intgrt.trapezoid(dfs.norm_phi_n_mu_avg,dfs['Energy [MeV]'])
         Phi_n_alpha = intgrt.trapezoid(dfs.norm_phi_n_alpha_avg,dfs['Energy [MeV]'])
+        Phi_n_ev = intgrt.trapezoid(dfsc['Neutron'],dfsc['Energy'])
         #calculate normalized spectrum
-        #phibar_mu = dfst.norm_phi_n_mu_avg/Phi_n_mu
-        phibar_mu = dfst.norm_phi_n_mu_avg
-        #phibar_alpha = dfst.norm_phi_n_alpha_avg/Phi_n_alpha
-        phibar_alpha = dfst.norm_phi_n_alpha_avg
+        phibar_mu = dfst.norm_phi_n_mu_avg/Phi_n_mu
+        #phibar_mu = dfst.norm_phi_n_mu_avg
+        phibar_alpha = dfst.norm_phi_n_alpha_avg/Phi_n_alpha
+        #phibar_alpha = dfst.norm_phi_n_alpha_avg
+        phibar_ev = dfstc['Neutron']/Phi_n_ev
         #spectral phi_e for each depth
         try:
             len(self.phi_n_mu)
             phi_e_mu = np.outer(self.phi_n_mu,phibar_mu)
             phi_e_alpha = np.outer(self.phi_n_alpha,phibar_alpha)
-            phi_e_ev = np.outer(self.phi_n_ev,phibar_mu)  #assume neutrons from hadronic have same spectrum as muon induced.  Seems wrong, but for now...
+            phi_e_ev = np.outer(self.phi_n_ev,phibar_ev)  #assume neutrons from hadronic have same spectrum as muon induced.  Seems wrong, but for now...
         except TypeError: 
             vflag=0
             phi_e_mu = self.phi_n_mu*phibar_mu
             phi_e_alpha = self.phi_n_mu*phibar_mu
-            phi_e_ev = self.phi_n_ev*phibar_mu
+            phi_e_ev = self.phi_n_ev*phibar_ev
         #fit a function to xsec
         f = interp1d(K39xsec['Energy [MeV]'],K39xsec['Cross-Section [barns]']*1e-24)
         #interpolate to neutron flux
         sigma_new=f(dfst['Energy [MeV]'])
+        sigma_newc=f(dfstc['Energy'])
         #Fold
         #the energy normalized spectral neutron flux
         P39Ar_ev_n = np.zeros_like(self.phi_n_mu)
@@ -524,8 +546,8 @@ class rock_type:
         if vflag:
             for d in range(phi_e_mu.shape[0]):
                 #evaporation
-                intgrnd_ev=sigma_new*phi_e_ev[d,:] #for a particular depth
-                I_ev=intgrt.trapezoid(intgrnd_ev,dfst['Energy [MeV]'])
+                intgrnd_ev=sigma_newc*phi_e_ev[d,:] #for a particular depth
+                I_ev=intgrt.trapezoid(intgrnd_ev,dfstc['Energy'])
                 P39Ar_ev_n[d] = N_tg*I_ev
                 #muon
                 intgrnd_mu=sigma_new*phi_e_mu[d,:] #for a particular depth
@@ -536,8 +558,8 @@ class rock_type:
                 I_alpha=intgrt.trapezoid(intgrnd_alpha,dfst['Energy [MeV]'])
                 P39Ar_alpha_n[d] = N_tg*I_alpha
         else:
-            intgrnd_ev=sigma_new*phi_e_ev #for a particular depth
-            I_ev=intgrt.trapezoid(intgrnd_ev,dfst['Energy [MeV]'])
+            intgrnd_ev=sigma_newc*phi_e_ev #for a particular depth
+            I_ev=intgrt.trapezoid(intgrnd_ev,dfstc['Energy'])
             P39Ar_ev_n = N_tg*I_ev
             #muon
             intgrnd_mu=sigma_new*phi_e_mu #for a particular depth

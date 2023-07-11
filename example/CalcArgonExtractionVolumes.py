@@ -1,5 +1,5 @@
-import noble_gas_tools as ng
-import He_tools as He
+import tracer_tools.noble_gas_tools as ng
+import tracer_tools.He_tools as He
 import numpy as np
 import matplotlib.pyplot as mpl
 
@@ -10,10 +10,10 @@ import matplotlib.pyplot as mpl
 #inputs
 #desired amount of Argon
 #V_d = 1e-4 #ccSTP - 10 microliters of Argon
-V_d = 1 #ccSTP - 10 microliters of Argon
+V_d = 3e-3 #ccSTP - 10 microliters of Argon
 
 #release fraction V_rel/V_tot
-xi = .8 #temperature dependent
+xi = .9 #temperature dependent
 
 #required volume of rock 
 n = 0.4 #porosity of unconsolidated sediment (conservative)
@@ -71,11 +71,18 @@ fig2,axes = mpl.subplots(nrows=2,figsize=(10,8))
 axes[0].loglog(age/1e6,V_por,'k-',lw=2)
 axes[0].set_xlabel('Rock Age (Mya)')
 axes[0].set_ylabel('Volume Crushed Rock (cc)')
+axes[0].vlines(330,10,1000,color='k',alpha=0.7,lw=2,label='Heidelberg Granite')
 
-axes[1].loglog(age/1e6,h_req,'k-',lw=2)
+
+#axes[1].loglog(age/1e6,h_req,'k-',lw=2)
+#axes[1].set_xlabel('Rock Age (Mya)')
+#axes[1].set_ylabel('Height of rock (r=%1.1f) (cm)'%r)
+
+axes[1].loglog(age/1e6,g_r,'k-',lw=2)
 axes[1].set_xlabel('Rock Age (Mya)')
-axes[1].set_ylabel('Height of rock (r=%1.1f) (cm)'%r)
-
+axes[1].set_ylabel('Required mass (g)')
+axes[1].vlines(330,10,1000,color='k',alpha=0.7,lw=2,label='Heidelberg Granite')
+mpl.savefig("/Users/wpgardner/pres/2023_Goldschmidt/RequiredMass.png",dpi=200)
 #ax1.fill_between()
 
 #CALCULATE      
