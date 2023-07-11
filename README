@@ -1,12 +1,14 @@
 tracer_tools is a python package with lots of utilities written for the use of Environmental Tracers in groundwater.  It is particularly useful for dissolved gas tracers including cfc's, sf6 and noble gases.  The code is poorly to moderately commented, and offered as is.  There are examples of some uses of the utilites in the example directory.  
 
 Python package requirements:
+The package management should install these, but it might work better to install on your own.
 numpy,scipy,matplotlib
 pandas
 lmfit
 iapws
 xlrd
 tkinter
+setuptools
 
 Install the above packages with your package manager if possible and make sure they are in your pythonpath.  
 
@@ -19,11 +21,9 @@ Clone the git repository.  For example, using git at the terminal
 
 git clone https://github.com/boatmorrow/tracer_tools_py3
 
+cd into repository directory (tracer_tools-py3)
 
-This will add a directory with the tracer_tools repository.  Now, add the downloaded repository directory to your PYTHONPATH and PATH variables.  For example, using a bash terminal:
-
-export PYTHONPATH=path/to/repository:$PYTHONPATH 
-export PATH=path/to/repository:$PATH 
+pip install .
 
 Written by:
 W. Payton Gardner
