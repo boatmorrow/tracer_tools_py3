@@ -1,0 +1,37 @@
+Neutron_flux_Normalized.csv:
+columns: 
+energy [MeV] 4.47e-6 to 9.6e9 (332 values)
+norm. phi(mu,n) WS
+norm. phi(mu,n) MK1
+norm. phi(mu,n) averaged across locations
+norm. phi(alpha,n) WS
+norm phi (alpha,n) MK1
+norm. phi (alpha,n) averaged
+energy-weighted differential flux values [MeV* 1/(cm^2 s MeV)]
+based on Grieger et al. 2021
+
+Differential_neutron_flux_normalized.csv:
+columns as above, but flux values divided by energy [1/(cm^2 s MeV)]
+normalized, integral over all energies gives 1 +- 0.005 [cm^-2 s^-1]
+
+HeidelbergNeutronFlux.csv:
+columns:
+Energy (in MeV)
+Neutrons (in #Neutrons/cm^2/s/MeV)
+differential neutron flux value
+based on EXPACS from Sato 2015
+input values: ?
+
+K39_XS.csv:
+Energy [MeV] (1e-11 to 60.0 MeV)
+Cross-Section [barns]
+reaction cross-section for 
+39K (n,p) 39Ar in dependence of the neutron energy
+Source: ?
+
+Ca42_XS.csv:
+Energy [MeV] (1e-11 to 30.0 MeV)
+Cross-Section [barns]
+reaction cross-section for 
+Ca42 (n, alpha) 39Ar in dependence of the neutron energy
+Source: ?

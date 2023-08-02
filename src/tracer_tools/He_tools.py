@@ -22,18 +22,20 @@ class rock_type:
         self.name = name;
         self.li_capt_prob = li_capt_prob
         self.total_capt_prob = total_capt_prob
-        self.composition = composition
+        self.composition = composition # weight fractions g/g (dimensionless)
         self.porosity = porosity
-        self.density = density
-        self.HPR = self.He_prod_rate()
+        self.density = density #g/cm^3
+        self.HPR = self.He_prod_rate() 
         self.APR = self.Ar_prod_rate()
-        self.Pn_alpha = 0
-        self.Pn_ev = 0
-        self.Pn_mu = 0
-        self.phi_n_ev = 0
+        self.Pn_alpha = 0 #neutron production rates for radiogenic (alpha,n) reactions
+        self.Pn_ev = 0 # evaporation & spallation (aka primary cosmic ray neutrons)
+        self.Pn_mu = 0 # slow muon capture
+        self.phi_n_ev = 0 #resulting total neutron fluxes in #n/cm^2/yr
         self.phi_n_mu = 0
         self.phi_n_alpha = 0
-        self.Z_dict = {'Li':3,
+        #path to the surface flux spectrum of the current location, default Heidelberg
+        self.n_sf_spec = os.path.join(os.path.dirname(__file__), 'HeidelbergNeutronFlux.csv') 
+        self.Z_dict = {'Li':3, #proton numbers
                        'U':92,
                        'Na':11,
                        'Mg':12,
@@ -46,7 +48,28 @@ class rock_type:
                        'F':9,
                        'Ca':20, 
                        'Ti':22,
-                       'Fe':26} #Ballanine and Burnard Reviews in Geochem, pg 488, flourine taken from Sramek 2017
+                       'Fe':26} #Ballentine and Burnard Reviews in Geochem, pg 488, fluorine taken from Sramek 2017
+        self.molM_dict = {'O':16.00, #atomic weights in g/mol
+                          'H':1.01,
+                          'C':12.01,
+                          'Na':22.99,
+                          'Mg':24.31,
+                          'Al':26.98,
+                          'Si':28.09,
+                          'P':30.97,
+                          'K':39.10,
+                          'Ca':40.08,
+                          'Ti':47.87,
+                          'Mn':54.85,
+                          'Fe':55.85,
+                          'Cl':35.45,
+                          'B':10.81,
+                          'Sm':150.36,
+                          'Gd':157.25,
+                          'U':238.03,
+                          'Th':232.04,
+                          'N':14.01,
+                          'Ar':39.95} #taken from Alfimov and Ivy-Ochs 2009, table 2
 
     class He_prod_rate:
         '''the production rate for a given rock composition of 3he 4he in given units'''
@@ -63,22 +86,23 @@ class rock_type:
         '''
         def __init__(self):
             self.elev=0
-            self.depth=0
+            self.depth=0 #in g/cm^2
             self.incl=0
             self.Ar40_value = 0
-            self.Ar39_value = 0
+            self.Ar39_value = 0 #total production value
             self.Ar40_accum = 0
             self.Ar39_accum = 0
-            self.P39Ar_alpha_n=0
+            self.P39Ar_alpha_n=0 #Argon 39 production rate values
             self.P39Ar_ev_n=0
             self.P39Ar_mu_n=0
             self.P39Ar_n = 0
             self.P39Ar_mu = 0
-            self.P39Ar_value = 0
-            self.P39Ar_accum = 0
+            #self.P39Ar_value= 0  redundant, named Ar39_value, see above
+            #self.P39Ar_accum = 0
+            self.Ar39_U_Th_value = 0 #direct calculation with Sramek code, can be used for comparison to P39Ar_alpha_n
             self.Cseq = 0
             self.units = 'atoms/g_rock/yr'
-            self.mu_dict = {'C':[.090,0.76], #[fraction of muons adsorbed by nucleus, average neutron yield per mu]
+            self.mu_dict = {'C':[.090,0.76], #[fraction of muons adsorbed by nucleus (f_d), average neutron yield per mu (y_n)]
                              'O':[.223,.8],
                              'Na':[.432,1.],
                              'Mg':[.538,.6],
@@ -86,9 +110,9 @@ class rock_type:
                              'Si':[.671,.086],
                              'K':[.830,1.25],
                              'Ca':[.864,0.75],
-                             'Fe':[.906,1.1025]} #taken from Fabryka-Martin 1988
+                             'Fe':[.906,1.1025]} #taken from Fabryka-Martin 1988, Appendix Table B-2
 
-    def switch_units(self,units_desired='atoms/g_rock/yr'):
+    def switch_units(self,units_desired='atoms/g_rock/yr'): # self=rock_type object? 
         '''Convert the units for the helium production rate HPR.  Units need be in string 'He_type/vm/t' and I will update this as we go.  Figure's out what units
         we're in, and what we want, and then switches em.  Assumes complete transfer from rock to water'''
         self.calcHe_prod_rate_whole_rock() #switch back to default
@@ -238,7 +262,7 @@ class rock_type:
                             'Mg':1.33e-2,'Al':8.04e-2,'Si':3.09e-1,\
                             'C':3.24e-3,'Th':1.07e-5,'K':2.82e-2,\
                             'O':4.75e-1,'F':5.57e-4,'Ca':3e-2, \
-                            'Ti':3e-3,'Fe':3.15e-2} #Ballanine and Burnard Reviews in Geochem, pg 488, flourine taken from Sramek 2017
+                            'Ti':3e-3,'Fe':3.15e-2} #Ballentine and Burnard Reviews in Geochem, pg 488, flourine taken from Sramek 2017
             rli_capt_prob = 2.05e-4;  #Hardcoded from Ballentine - at some point this should be calculated from the composition
             rtotal_capt_prob = 9.79e-3;
             rdensity = 2.7 # g/cc
@@ -250,7 +274,7 @@ class rock_type:
                             'Mg':0.33e-2,'Al':14.44e-2,'Si':.7241,\
                             'C':3.24e-3,'Th':22e-6,'K':5.06e-2,\
                             'O':4.75e-1,'F':5.57e-4,'Ca':1e-2, \
-                            'Ti':3e-3,'Fe':1.9e-2} #Ballanine and Burnard Reviews in Geochem, pg 488, flourine taken from Sramek 2017
+                            'Ti':3e-3,'Fe':1.9e-2} #Ballentine and Burnard Reviews in Geochem, pg 488, flourine taken from Sramek 2017
             rli_capt_prob = 2.05e-4;  #Hardcoded from Ballentine - at some point this should be calculated from the composition
             rtotal_capt_prob = 9.79e-3;
             rdensity = 2.7 # g/cc
@@ -345,11 +369,12 @@ class rock_type:
             self.Pn_alpha=Sn/1000. #neutrons/g_rock/yr #hand shape issues
 
     def calcPn_ev_JFM(self,solar='avg',Pno=2000):
-        '''Estimates nuetron production from high-enery cosmic particles. 
+        '''Estimates neutron production from high-enery cosmic particles. 
                 solar activity one of min, max or average.
                 Pno surface production at 70 degrees and 0 masl - 2000n/g_rock/yr JFM
             returns Pn - neutron production in n/g_rock/yr'''
-        kl_array = np.array([[0,.164,.233,212],
+        #geomagnetic latitude lambda_m, latitude factor K_L (solar min), K_L [solar max), atmospheric attenuation length Lambda_n_a
+        kl_array = np.array([[0,.164,.233,212],  
                              [10,.170,.241,212],
                              [20, .206,.288,206],
                              [30, .307,.407,195],
@@ -360,8 +385,8 @@ class rock_type:
                              [90,1,1,164]])
         
         #declination effect
-        G = self.APR.incl*np.pi/180
-        lamma_m = np.arctan(0.5*np.tan(G))*180/np.pi
+        G = self.APR.incl*np.pi/180 # inclination (input attribute) in radiants
+        lamma_m = np.arctan(0.5*np.tan(G))*180/np.pi #geomagnetic latitude
         if solar=='min':
             K_L = np.interp(lamma_m,kl_array[:,0],kl_array[:,1])
         if solar=='max':
@@ -380,52 +405,54 @@ class rock_type:
         Lamma_nr = 150 #g/cm2
         K_d = np.exp(-self.APR.depth/Lamma_nr)
         Pn = K_E*K_L*K_d*Pno
-        self.Pn_ev=Pn
+        self.Pn_ev=Pn #n/g_rock/yr
     
-    def calcPn_ev(self,inp_file = os.path.join(os.path.dirname(__file__), 'HeidelbergNeutronFlux.csv')):
+    def calcPn_ev(self):
         '''calculates the production using the excel worksheet spectral flux and equation
         17 from Musy.  inp_file is the spectral energy flux, right now uses
         ELEVATION AND LATTITUDE OF HEIDELBERG RIGHT NOW!'''
-        dfsc = pd.read_csv(inp_file)
-        Phi_n = intgrt.trapezoid(dfsc['Neutron'],dfsc['Energy'])
-        Pno = Phi_n/160*3.15e7
-        #depth in rock
+        inp_file = self.n_sf_spec
+        dfsc = pd.read_csv(inp_file) #read in differential neutron flux at surface for specified location (EXPACS spectra)
+        Phi_n = intgrt.trapezoid(dfsc['Neutron'],dfsc['Energy']) #integrate for total flux [cm^-2 s^-1)
+        Pno = Phi_n/160*3.1556e7 # 160g/cm^2 attenuation lenght in rock for primary cosmogenic neutrons, per second to per year conversion
+        #depth in rock like in Fabryka-Martin
         Lamma_nr = 150 #g/cm2
-        K_d = np.exp(-self.APR.depth/Lamma_nr)
+        K_d = np.exp(-self.APR.depth/Lamma_nr) #exponential decrease with depth
         Pn = K_d*Pno
-        self.Pn_ev=Pn
+        self.Pn_ev=Pn # neutrons/g_rock/year
         
     def calcPn_mu(self,K_L=1,K_E=1):
         ''''calculate the neutron flux in n/g_rock/yr for:
                 the given rock type at the given depth in rock column (z) in g/cm2. '''
         z = self.APR.depth    
         #calculate stopping rate at depth z
-        muk = np.array([[0.8450,1029.6],
+        muk = np.array([[0.8450,1029.6], #relative intensities [-] and attenuation coefficients [g/cm^2]
                [-0.05,161.2],
-               [.0205,3000.4]])
+               [.0205,3000.4]]) # taken from Musy 2023 supplementaries
         
-        I_mu0 = 190 #mu/g_rck/yr
+        I_mu0 = 190 #mu/g_rock/yr rate of stopping muons at sea level, high latitudes
         Ikz=0
         #pdb.set_trace()
-        for k in range(muk.shape[0]):
+        for k in range(muk.shape[0]): #depth-dependance based on 3 coefficients
             ikk = muk[k,0]*np.exp(-z/muk[k,1])
             Ikz+=ikk
         
-        I_muz = I_mu0*Ikz
+        I_muz = I_mu0*Ikz #depth-dependent stopping rate in #mu/g_rock/yr
         
         #calculate neutron yield per muon
         
-        #for fc
+        #for fc compound factor
+        N_Avog = 6.02214076e23
         MtZt=0
         for e in self.APR.mu_dict:
-            Mi = self.composition[e]
+            Mi = self.composition[e]*N_Avog/self.molM_dict[e] #conversion to atomic concentrations
             Zi = self.Z_dict[e]
             MtZt += Mi*Zi
         
         # Total composition weighted average neutron yield
         Y_n = 0
         for e in self.APR.mu_dict:
-            Mi = self.composition[e]
+            Mi = self.composition[e]*N_Avog/self.molM_dict[e]
             Zi = self.Z_dict[e]
             f_c = Mi*Zi/MtZt
             y_i = self.APR.mu_dict[e][1]
@@ -433,14 +460,14 @@ class rock_type:
             Y_n += f_c*f_d*y_i
     
         # Pn
-        self.Pn_mu = K_L*K_E*I_muz*Y_n
+        self.Pn_mu = K_L*K_E*I_muz*Y_n #K_L and K_E set to one currently. No correction for altitude and latitude
     
     def  calc_phi_n(self,Lamma_ev=160,Lamma_mu=35):
-        '''Calculate the neutron fluxs for primary, muon induced and alpha neutrons in n/cm2/s, 
+        '''Calculate the neutron fluxs for primary, muon induced and alpha neutrons in n/cm2/yr, 
             for homogenous neutron production. Using phi_n = Lamma*Pn after Musy 2023.'''
         self.phi_n_ev = Lamma_ev*self.Pn_ev
         self.phi_n_mu = Lamma_mu*self.Pn_mu
-        self.phi_n_alpha = Lamma_mu*self.Pn_alpha
+        self.phi_n_alpha = Lamma_mu*self.Pn_alpha #should that be lamma_ev? 
 
     def calcHe_prod_rate_whole_rock(self):
         '''Calculate the He_prod_rate for the rock type '''
@@ -465,35 +492,36 @@ class rock_type:
         The 39Ar production for a given rock type at the given 
         at the elevation (masl), inclination (magnetic), depth (g/cm2), and 
         solar activity (one of (max,min,avg).'''
-        lamma_e = 0.581e-10
-        lamma_k = 5.463e-10
-        Ma = 39.964
-        Na = 6.023e23
-        Xk = 1.176e-4
-        F = Xk*Na/Ma*lamma_e/lamma_k*(np.exp(lamma_k*1)-1)
-        self.APR.Ar40_value = self.composition['K']*F 
+        lamma_e = 0.581e-10 #partial decay constant of 40K to 40Ar [yr^-1]
+        lamma_k = 5.463e-10 # total decay constant of 40K? If yes, should be 5.543e-10 [yr^-1]
+        Ma = 39.964 #molar mass of 40Ar [g/mol]
+        Na = 6.023e23 #avogadro constant [atoms/mol]
+        Xk = 1.176e-4 # 40K/K ratio in the Earth [g_K40/g_K]
+        F = Xk*Na/Ma*lamma_e/lamma_k*(np.exp(lamma_k*1)-1) # Production of 40Ar [#atoms] per unit time per gram potassium 
+        self.APR.Ar40_value = self.composition['K']*F # Ar40 prodution rate [#atoms/g_rock/yr]
         #pdb.set_trace()
-        self.calc39Ar_prod(solar=solar,calc_flux=calc_flux)
+        self.calc39Ar_prod(solar=solar,calc_flux=calc_flux) #function to calculate total Argon production, saves to self.APR.Ar39_value
         self.APR.units ='atoms/g_rock/yr'
     
-    def calcP39Ar_n(self,solar='avg',calc_flux=1,nfile=os.path.join(os.path.dirname(__file__), 'HeidelbergNeutronFlux.csv')):
+    def calcP39Ar_n(self,solar='avg',calc_flux=1):
         '''calculate the total 39Ar production from neutrons fora all channels.
         Will calculate neutron production and flux first if desired, for each channel 
         for the given rock type at the depth in g/cm2, elevation (masl) and magnetic
         inclination.'''
+        nfile=self.n_sf_spec
         if calc_flux:
             #self.calcPn_ev_JFM(solar=solar)
-            self.calcPn_ev(inp_file=nfile)
+            self.calcPn_ev() #calling functions to calculate the different neutron production rates
             self.calcPn_mu()
             self.calcPn_alpha()
-            self.calc_phi_n()
+            self.calc_phi_n() #convert to neutron fluxes (with isotropic assumption & effective attenuation lenghts)
         vflag=1
         #read in spectral data
-        inp_file = os.path.join(os.path.dirname(__file__), 'Neutron_flux_Normalized.csv')
-        dfs = pd.read_csv(inp_file)
+        inp_file = os.path.join(os.path.dirname(__file__), 'Differential_neutron_flux_normalized.csv')
+        dfs = pd.read_csv(inp_file) #neutrons/cm^2/s/MeV
         #read in cosmic spectral flux from excel sheet for heidelberg lattitude and elevation
         inp_file = os.path.join(os.path.dirname(__file__), 'HeidelbergNeutronFlux.csv')
-        dfsc = pd.read_csv(inp_file)
+        dfsc = pd.read_csv(inp_file) #neutrons/cm^2/s/MeV
         
         #read in the cross section
         inp_file = os.path.join(os.path.dirname(__file__), 'K39_XS.csv')
@@ -502,30 +530,35 @@ class rock_type:
         Ca42xsec = pd.read_csv(inp_file)
         
         #Potassium production
+        
         #truncate to the cross section spectrum
         dfst=dfs[dfs['Energy [MeV]']<K39xsec['Energy [MeV]'].max()] #for K
         dfstc = dfsc[dfsc['Energy']<K39xsec['Energy [MeV]'].max()] #for K
-        #calculate normalization
-        Phi_n_mu = intgrt.trapezoid(dfs.norm_phi_n_mu_avg,dfs['Energy [MeV]'])
+        #calculate normalization (total enegry-integrated fluxes) in units [#n/cm^2/s]
+        Phi_n_mu = intgrt.trapezoid(dfs.norm_phi_n_mu_avg,dfs['Energy [MeV]']) #
         Phi_n_alpha = intgrt.trapezoid(dfs.norm_phi_n_alpha_avg,dfs['Energy [MeV]'])
         Phi_n_ev = intgrt.trapezoid(dfsc['Neutron'],dfsc['Energy'])
-        #calculate normalized spectrum
-        phibar_mu = dfst.norm_phi_n_mu_avg/Phi_n_mu
+        #calculate normalized spectrum in units 1/MeV
+        phibar_mu = dfst.norm_phi_n_mu_avg/Phi_n_mu #
         #phibar_mu = dfst.norm_phi_n_mu_avg
         phibar_alpha = dfst.norm_phi_n_alpha_avg/Phi_n_alpha
         #phibar_alpha = dfst.norm_phi_n_alpha_avg
         phibar_ev = dfstc['Neutron']/Phi_n_ev
+        
         #spectral phi_e for each depth
         try:
-            len(self.phi_n_mu)
+            len(self.phi_n_mu) #raises type error if phi_n_mu is an float instead of an array
+            # self.phi_n_xy scalar or vector if depth-dependant flux [#n/cm^2/yr],
+            # outer product gives array phi_ij with i=depth and j=energy in units [#n/cm^2/yr/MeV]
             phi_e_mu = np.outer(self.phi_n_mu,phibar_mu)
             phi_e_alpha = np.outer(self.phi_n_alpha,phibar_alpha)
-            phi_e_ev = np.outer(self.phi_n_ev,phibar_ev)  #assume neutrons from hadronic have same spectrum as muon induced.  Seems wrong, but for now...
-        except TypeError: 
+            phi_e_ev = np.outer(self.phi_n_ev,phibar_ev)  #
+        except TypeError: #if self.phi_n_xy is a scalar
             vflag=0
             phi_e_mu = self.phi_n_mu*phibar_mu
             phi_e_alpha = self.phi_n_mu*phibar_mu
             phi_e_ev = self.phi_n_ev*phibar_ev
+            
         #fit a function to xsec
         f = interp1d(K39xsec['Energy [MeV]'],K39xsec['Cross-Section [barns]']*1e-24)
         #interpolate to neutron flux
@@ -533,22 +566,22 @@ class rock_type:
         sigma_newc=f(dfstc['Energy'])
         #Fold
         #the energy normalized spectral neutron flux
-        P39Ar_ev_n = np.zeros_like(self.phi_n_mu)
+        P39Ar_ev_n = np.zeros_like(self.phi_n_mu) #create empty arrays in the right shape to hold values
         P39Ar_mu_n = np.zeros_like(self.phi_n_mu)
         P39Ar_alpha_n = np.zeros_like(self.phi_n_mu)
         
         #calculate target nuclear concentration.
-        Kmfrac = self.composition['K']
+        Kmfrac = self.composition['K'] #weight fraction g_Ka/g_rock
         K39mfrac = Kmfrac*.932581 #from Reviews Ar dating chapter
-        M_K = 39.0983
-        Na = 6.02e23
-        N_tg = K39mfrac/M_K*Na
+        M_K = 39.0983 #molar mass of K g/mol
+        Na = 6.02e23 #avogadro constant #atoms/mol
+        N_tg = K39mfrac/M_K*Na #atoms K39/g_rock
         if vflag:
             for d in range(phi_e_mu.shape[0]):
                 #evaporation
                 intgrnd_ev=sigma_newc*phi_e_ev[d,:] #for a particular depth
-                I_ev=intgrt.trapezoid(intgrnd_ev,dfstc['Energy'])
-                P39Ar_ev_n[d] = N_tg*I_ev
+                I_ev=intgrt.trapezoid(intgrnd_ev,dfstc['Energy']) #calculating the folding integral
+                P39Ar_ev_n[d] = N_tg*I_ev # in units #Argon39/g_rock/vr
                 #muon
                 intgrnd_mu=sigma_new*phi_e_mu[d,:] #for a particular depth
                 I_mu=intgrt.trapezoid(intgrnd_mu,dfst['Energy [MeV]'])
@@ -572,10 +605,10 @@ class rock_type:
         
         #neglecting ca42 for now.  Should be added some day.
         
-        self.APR.P39Ar_alpha_n=P39Ar_alpha_n
+        self.APR.P39Ar_alpha_n=P39Ar_alpha_n #saving to the class attributes
         self.APR.P39Ar_ev_n=P39Ar_ev_n
         self.APR.P39Ar_mu_n=P39Ar_mu_n
-        self.APR.P39Ar_n = P39Ar_ev_n+P39Ar_mu_n+P39Ar_alpha_n
+        self.APR.P39Ar_n = P39Ar_ev_n+P39Ar_mu_n+P39Ar_alpha_n #total prod. rate due to neutrons
         self.APR.units ='atoms/g_rock/yr'
     
     #calculate muon production rate
@@ -584,9 +617,9 @@ class rock_type:
                 the given rock type at the given depth in rock column (z) in g/cm2. '''
         depth = self.APR.depth 
         #calculate stopping rate at depth z
-        muk = np.array([[0.8450,1029.6],
+        muk = np.array([[0.8450,1029.6], #relative intensities [-] and attenuation coefficients [g/cm^2]
                [-0.05,161.2],
-               [.0205,3000.4]])
+               [.0205,3000.4]])  # taken from Musy 2023 supplementaries
         
         I_mu0 = 190 #mu/g_rck/yr
         Ikz=0
@@ -599,28 +632,29 @@ class rock_type:
         
         #calculate 39Ar yield per muon
         
-        #for fc
+        #for fc chemical compound factor
+        N_Avog = 6.02214076e23
         MtZt=0
         for e in self.APR.mu_dict:
-            Mi = self.composition[e]
+            Mi = self.composition[e]*N_Avog/self.molM_dict[e] #conversion to atomic concentrations
             Zi = self.Z_dict[e]
             MtZt += Mi*Zi
         
         # Total composition weighted average neutron yield
         Y_Ar = 0
-        channel_dict = {'K':[.93258,0.015],'Ca':[0.969,0.004]}
+        channel_dict = {'K':[.93258,0.015],'Ca':[0.969,0.004]} #isotopic abundace and reation probabbility
         for e in channel_dict.keys():
-            Mi = self.composition[e]
+            Mi = self.composition[e]*N_Avog/self.molM_dict[e] #conversion to atomic concentrations
             Zi = self.Z_dict[e]
-            f_c = Mi*Zi/MtZt
-            f_a = channel_dict[e][0]
-            f_r = channel_dict[e][1]
-            f_d = self.APR.mu_dict[e][0]
-            Y_e = f_a*f_c*f_d*f_r
+            f_c = Mi*Zi/MtZt #chemical compound facotr (for the element)
+            f_a = channel_dict[e][0] #abundance of target isotope in element
+            f_r = channel_dict[e][1] #reaction probability
+            f_d = self.APR.mu_dict[e][0] # nuclear capture probability
+            Y_e = f_a*f_c*f_d*f_r #Ar39 yield for channel e [atoms Ar39/stopped muon]
             Y_Ar += Y_e
         
         # P39Ar
-        self.APR.P39Ar_mu = K_L*K_E*I_muz*Y_Ar
+        self.APR.P39Ar_mu = K_L*K_E*I_muz*Y_Ar #production rate due to direct muon  capture [#Ar39/g_rock/yr]
     
     def calc39Ar_prod(self,solar='avg',calc_flux=1):
         ''' calculate the 39Ar production for a given rock type at the given 
@@ -719,12 +753,12 @@ class rock_type:
         #    print('accumulation only works for age in years')
         #if self.APR.units.split('/')[0] != 'atoms':
         #    print('accumulation only works for amount in atoms, change units to atoms/g_rock/yr')
-        lamma_e = 0.581e-10 #1/yr
-        lamma_k = 5.463e-10 #1/yr
-        Ma = 39.964
-        Na = 6.023e23
-        Xk = 1.176e-4
-        F = Xk*Na/Ma*lamma_e/lamma_k*(np.exp(lamma_k*age)-1)
+        lamma_e = 0.581e-10 #1/yr partial decay const. for Ar40
+        lamma_k = 5.463e-10 #1/yr decay constant of K40
+        Ma = 39.964 #molar mass of Ar40
+        Na = 6.023e23 #avogadro constant
+        Xk = 1.176e-4 #isotope ratio 40K/K
+        F = Xk*Na/Ma*lamma_e/lamma_k*(np.exp(lamma_k*age)-1) #as above in Ar40_value except for given age instead of per unit time
         self.APR.Ar40_accum = self.composition['K']*F 
         self.switch_units(unitsi)
 
@@ -737,17 +771,17 @@ class rock_type:
         unitsi = self.APR.units
         self.switch_units('atoms/g_rock/yr')
         #really this should always change the units to atoms/g_rock/yr, and then switch back
-        t_half = 269.2161339422 #yr-1
+        t_half = 269.2161339422 #yr-1 halflife of Argon 39
         #pdb.set_trace()
-        lamma = np.log(2)/t_half
-        P = self.APR.Ar39_value
+        lamma = np.log(2)/t_half #conversion to decay constant
+        P = self.APR.Ar39_value #total production rate value
         try:
-            if len(P) != 1:
+            if len(P) != 1: # production rate is vector-valued, i.e. given depth-dependence
                 if len(Co) != 1:
                     if len(age) !=1:                  
                         print('Non-uniform production rate, age, and concentration. Results are not to be trusted')
         except TypeError:
-            N = P/lamma+(Co-P/lamma)*np.exp(-lamma*age)
+            N = P/lamma+(Co-P/lamma)*np.exp(-lamma*age) # solution for t=age and N(t=0)=Co to ODE dN/dt = -lamma*N + P
     #N = P/lamma+np.outer((Co-P/lamma),np.exp(-lamma*age))
             self.APR.Ar39_accum=N
             self.switch_units(unitsi)
@@ -757,9 +791,9 @@ class rock_type:
         unitsi = self.APR.units
         self.switch_units('atoms/g_rock/yr')
         t_half = 269.2161339422 #yr-1
-        lamma = np.log(2)/t_half
+        lamma = np.log(2)/t_half #decay constant
         P = self.APR.Ar39_value
-        Cseq = P/lamma
+        Cseq = P/lamma #depth-dependent if Ar39_value is depth-dependent
         self.APR.Cseq = Cseq
 
 def calcHe_prod_rate_refresh(rock_type):
