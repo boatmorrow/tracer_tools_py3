@@ -15,6 +15,36 @@ import scipy.integrate as intgrt
 from scipy.interpolate import interp1d
 import importlib.resources as pkg_resources
 import os
+import scipy.constants as scic
+
+#define constants for He_tools
+
+# physical constants 
+N_AVOG = scic.N_A
+
+# decay rates [yr^-1]
+LAMBDA_AR39 = np.log(2)/268 #NUBASE 2020
+LAMBDA_K40_TOTAL = 5.543e-10 #Reviews in Mineralogy and Geochemistry Volume 47, 2002, chapter “K-Ar and Ar-Ar Dating”
+LAMBDA_K40_TO_AR40 = 5.808e-11 
+LAMBDA_K40_TO_CA40 = 4.962e-10
+
+# from NIST, https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-relative-atomic-masses (visited on 08/14/2023):
+# relative isotopic masses, equivalent to molar mass in g/mol, 
+#without uncertainty here
+MOL_MASS_AR39 = 38.9643130
+MOL_MASS_AR40 = 39.9623831237
+MOL_MASS_K39 =  38.9637064864
+MOL_MASS_K40 =  39.963998166
+MOL_MASS_CA42 = 41.95861783
+# standard atomic weights (based on the natural abundance)  
+ATOMIC_WEIGHT_AR = 39.948
+ATOMIC_WEIGHT_K =  39.0983
+ATOMIC_WEIGHT_CA = 40.078 
+# isotopic composition ratios (nautral abundance, molar ratios mol/mol)
+K39_TO_K_RATIO = 0.932581
+K40_TO_K_RATIO = 0.000117
+CA42_TO_CA_RATIO = 0.00647
+
 
 class rock_type:
     '''this will be a way to pass around different rock typs'''
@@ -70,6 +100,27 @@ class rock_type:
                           'Th':232.04,
                           'N':14.01,
                           'Ar':39.95} #taken from Alfimov and Ivy-Ochs 2009, table 2
+        self.rel_capt_prob = {'O':1.00, #coulomb-capture probability relative to oxygen  
+                          'H':0, #missing value in source 
+                          'C':0.43,
+                          'Na':1.00,
+                          'Mg':0.93,
+                          'Al':0.76,
+                          'Si':0.84,
+                          'P':1.04,
+                          'K':1.54,
+                          'Ca':1.90,
+                          'Ti':2.66,
+                          'Mn':2.73,
+                          'Fe':3.28,
+                          'Cl':1.32,
+                          'B':0.25,
+                          'Sm':4.40,
+                          'Gd':5.80,
+                          'U':4.70,
+                          'Th':3.00,
+                          'N':1.02,
+                          'Ar':0} # missing value #taken from Alfimov and Ivy-Ochs 2009, table 2
 
     class He_prod_rate:
         '''the production rate for a given rock composition of 3he 4he in given units'''
@@ -99,6 +150,8 @@ class rock_type:
             self.P39Ar_mu = 0
             #self.P39Ar_value= 0  redundant, named Ar39_value, see above
             #self.P39Ar_accum = 0
+              #set to 1 to include Calcium 42
+            self.Ca42 = 1 
             self.Ar39_U_Th_value = 0 #direct calculation with Sramek code, can be used for comparison to P39Ar_alpha_n
             self.Cseq = 0
             self.units = 'atoms/g_rock/yr'
@@ -118,8 +171,8 @@ class rock_type:
         self.calcHe_prod_rate_whole_rock() #switch back to default
         self.calcAr_prod_rate_whole_rock()
         current_units = self.HPR.units
-        atoms_to_mols = 1./6.0221415e23;
-        atoms_to_ccSTP = 22414./6.0221415e23;
+        atoms_to_mols = 1./N_AVOG;
+        atoms_to_ccSTP = 22414./N_AVOG;
         g_rock_to_cc_rock = 1./self.density;
         cc_to_m3 = 1./100.**3;
         m3_rock_to_m3_rev = 1/(1.-self.porosity);
@@ -442,19 +495,18 @@ class rock_type:
         #calculate neutron yield per muon
         
         #for fc compound factor
-        N_Avog = 6.02214076e23
-        MtZt=0
+        MtWt=0
         for e in self.APR.mu_dict:
-            Mi = self.composition[e]*N_Avog/self.molM_dict[e] #conversion to atomic concentrations
-            Zi = self.Z_dict[e]
-            MtZt += Mi*Zi
+            Mi = self.composition[e]*N_AVOG/self.molM_dict[e] #conversion to atomic concentrations
+            Wi = self.rel_capt_prob[e]
+            MtWt += Mi*Wi
         
         # Total composition weighted average neutron yield
         Y_n = 0
         for e in self.APR.mu_dict:
-            Mi = self.composition[e]*N_Avog/self.molM_dict[e]
-            Zi = self.Z_dict[e]
-            f_c = Mi*Zi/MtZt
+            Mi = self.composition[e]*N_AVOG/self.molM_dict[e]
+            Wi = self.rel_capt_prob[e]
+            f_c = Mi*Wi/MtWt
             y_i = self.APR.mu_dict[e][1]
             f_d = self.APR.mu_dict[e][0]
             Y_n += f_c*f_d*y_i
@@ -467,7 +519,7 @@ class rock_type:
             for homogenous neutron production. Using phi_n = Lamma*Pn after Musy 2023.'''
         self.phi_n_ev = Lamma_ev*self.Pn_ev
         self.phi_n_mu = Lamma_mu*self.Pn_mu
-        self.phi_n_alpha = Lamma_mu*self.Pn_alpha #should that be lamma_ev? 
+        self.phi_n_alpha = Lamma_mu*self.Pn_alpha #lamma_alpha ~ lamma_mu, as neutrons have similar energy range 
 
     def calcHe_prod_rate_whole_rock(self):
         '''Calculate the He_prod_rate for the rock type '''
@@ -492,12 +544,11 @@ class rock_type:
         The 39Ar production for a given rock type at the given 
         at the elevation (masl), inclination (magnetic), depth (g/cm2), and 
         solar activity (one of (max,min,avg).'''
-        lamma_e = 0.581e-10 #partial decay constant of 40K to 40Ar [yr^-1]
-        lamma_k = 5.463e-10 # total decay constant of 40K? If yes, should be 5.543e-10 [yr^-1]
-        Ma = 39.964 #molar mass of 40Ar [g/mol]
-        Na = 6.023e23 #avogadro constant [atoms/mol]
-        Xk = 1.176e-4 # 40K/K ratio in the Earth [g_K40/g_K]
-        F = Xk*Na/Ma*lamma_e/lamma_k*(np.exp(lamma_k*1)-1) # Production of 40Ar [#atoms] per unit time per gram potassium 
+        lamma_e = LAMBDA_K40_TO_AR40 #partial decay constant of 40K to 40Ar [yr^-1]
+        lamma_k = LAMBDA_K40_TOTAL # total decay constant of 40K? If yes, should be 5.543e-10 [yr^-1]
+        Ma = MOL_MASS_AR40 #molar mass of 40Ar [g/mol]
+        Xk = K40_TO_K_RATIO # 40K/K ratio in the Earth [g_K40/g_K]
+        F = Xk*N_AVOG/Ma*lamma_e/lamma_k*(np.exp(lamma_k*1)-1) # Production of 40Ar [#atoms] per unit time per gram potassium 
         self.APR.Ar40_value = self.composition['K']*F # Ar40 prodution rate [#atoms/g_rock/yr]
         #pdb.set_trace()
         self.calc39Ar_prod(solar=solar,calc_flux=calc_flux) #function to calculate total Argon production, saves to self.APR.Ar39_value
@@ -515,12 +566,12 @@ class rock_type:
             self.calcPn_mu()
             self.calcPn_alpha()
             self.calc_phi_n() #convert to neutron fluxes (with isotropic assumption & effective attenuation lenghts)
-        vflag=1
+        vflag=1 #sets default for depth-dependent calculation
         #read in spectral data
         inp_file = os.path.join(os.path.dirname(__file__), 'Differential_neutron_flux_normalized.csv')
         dfs = pd.read_csv(inp_file) #neutrons/cm^2/s/MeV
         #read in cosmic spectral flux from excel sheet for heidelberg lattitude and elevation
-        inp_file = os.path.join(os.path.dirname(__file__), 'HeidelbergNeutronFlux.csv')
+        inp_file = self.n_sf_spec
         dfsc = pd.read_csv(inp_file) #neutrons/cm^2/s/MeV
         
         #read in the cross section
@@ -554,7 +605,7 @@ class rock_type:
             phi_e_alpha = np.outer(self.phi_n_alpha,phibar_alpha)
             phi_e_ev = np.outer(self.phi_n_ev,phibar_ev)  #
         except TypeError: #if self.phi_n_xy is a scalar
-            vflag=0
+            vflag=0 #sets vflag to calculations for a single depth
             phi_e_mu = self.phi_n_mu*phibar_mu
             phi_e_alpha = self.phi_n_mu*phibar_mu
             phi_e_ev = self.phi_n_ev*phibar_ev
@@ -564,20 +615,18 @@ class rock_type:
         #interpolate to neutron flux
         sigma_new=f(dfst['Energy [MeV]'])
         sigma_newc=f(dfstc['Energy'])
-        #Fold
-        #the energy normalized spectral neutron flux
+        #Fold the energy normalized spectral neutron flux
         P39Ar_ev_n = np.zeros_like(self.phi_n_mu) #create empty arrays in the right shape to hold values
         P39Ar_mu_n = np.zeros_like(self.phi_n_mu)
         P39Ar_alpha_n = np.zeros_like(self.phi_n_mu)
         
         #calculate target nuclear concentration.
         Kmfrac = self.composition['K'] #weight fraction g_Ka/g_rock
-        K39mfrac = Kmfrac*.932581 #from Reviews Ar dating chapter
-        M_K = 39.0983 #molar mass of K g/mol
-        Na = 6.02e23 #avogadro constant #atoms/mol
-        N_tg = K39mfrac/M_K*Na #atoms K39/g_rock
-        if vflag:
-            for d in range(phi_e_mu.shape[0]):
+        K39mfrac = Kmfrac*.932581 #from Reviews Ar dating chapter (mol fraction)
+        M_K = ATOMIC_WEIGHT_K #molar mass of K g/mol
+        N_tg = K39mfrac/M_K*N_AVOG #atoms K39/g_rock
+        if vflag: #calculating the whole depth range
+            for d in range(phi_e_mu.shape[0]): 
                 #evaporation
                 intgrnd_ev=sigma_newc*phi_e_ev[d,:] #for a particular depth
                 I_ev=intgrt.trapezoid(intgrnd_ev,dfstc['Energy']) #calculating the folding integral
@@ -603,8 +652,71 @@ class rock_type:
             I_alpha=intgrt.trapezoid(intgrnd_alpha,dfst['Energy [MeV]'])
             P39Ar_alpha_n = N_tg*I_alpha
         
-        #neglecting ca42 for now.  Should be added some day.
-        
+        #Adds the production rates for Ca42(n,alpha)Ar39
+        if self.APR.Ca42 != 0:
+            print('Including spallation reactions with Ca42.')
+            #truncate to the cross section spectrum
+            #dfst=dfs[dfs['Energy [MeV]']<K39xsec['Energy [MeV]'].max()] #for K
+            dfst_ca42=dfs[dfs['Energy [MeV]']<Ca42xsec['Energy [MeV]'].max()] #for Ca
+            dfstc_ca42 = dfsc[dfsc['Energy']<Ca42xsec['Energy [MeV]'].max()] #for Ca
+            #calculate normalized spectrum in units 1/MeV
+            phibar_mu_ca42 = dfst_ca42.norm_phi_n_mu_avg/Phi_n_mu #
+            phibar_alpha_ca42 = dfst_ca42.norm_phi_n_alpha_avg/Phi_n_alpha
+            phibar_ev_ca42 = dfstc_ca42['Neutron']/Phi_n_ev
+
+            #spectral phi_e for each depth for the spectral length of Ca42
+            try:
+                len(self.phi_n_mu) #raises type error if phi_n_mu is an float instead of an array
+                # self.phi_n_xy scalar or vector if depth-dependant flux [#n/cm^2/yr],
+                # outer product gives array phi_ij with i=depth and j=energy in units [#n/cm^2/yr/MeV]
+                phi_e_mu_ca42 = np.outer(self.phi_n_mu,phibar_mu_ca42)
+                phi_e_alpha_ca42 = np.outer(self.phi_n_alpha,phibar_alpha_ca42)
+                phi_e_ev_ca42 = np.outer(self.phi_n_ev,phibar_ev_ca42)  #
+            except TypeError: #if self.phi_n_xy is a scalar
+                vflag=0 #sets vflag to calculations for a single depth
+                phi_e_mu_ca42 = self.phi_n_mu*phibar_mu_ca42
+                phi_e_alpha_ca42 = self.phi_n_mu*phibar_mu_ca42
+                phi_e_ev_ca42 = self.phi_n_ev*phibar_ev_ca42
+
+            #fit a function to xsec
+            f_ca42 = interp1d(Ca42xsec['Energy [MeV]'],Ca42xsec['Cross-Section [barns]']*1e-24)
+            #interpolate to neutron flux
+            sigma_new_ca42=f_ca42(dfst_ca42['Energy [MeV]'])
+            sigma_newc_ca42=f(dfstc_ca42['Energy'])
+            #Fold the energy normalized spectral neutron flux
+
+            #calculate target nuclear concentration.
+            Cafrac = self.composition['Ca'] #weight fraction g_Ca/g_rock
+            Ca42mfrac = Cafrac*.00647 #currently from Wikipedia, check citable source
+            M_Ca = ATOMIC_WEIGHT_CA #molar mass of Ca g/mol 
+            N_tg_ca42 = Ca42mfrac/M_Ca*N_AVOG #atoms Ca42/g_rock
+            if vflag: #calculating the whole depth range
+                for d in range(phi_e_mu_ca42.shape[0]): 
+                    #evaporation
+                    intgrnd_ev_ca42=sigma_newc_ca42*phi_e_ev_ca42[d,:] #for a particular depth
+                    I_ev_ca42=intgrt.trapezoid(intgrnd_ev_ca42,dfstc_ca42['Energy']) #calculating the folding integral
+                    P39Ar_ev_n[d] += N_tg_ca42*I_ev_ca42 # in units #Argon39/g_rock/vr
+                    #muon
+                    intgrnd_mu_ca42=sigma_new_ca42*phi_e_mu_ca42[d,:] #for a particular depth
+                    I_mu_ca42=intgrt.trapezoid(intgrnd_mu_ca42,dfst_ca42['Energy [MeV]'])
+                    P39Ar_mu_n[d] += N_tg_ca42*I_mu_ca42
+                    #alpha
+                    intgrnd_alpha_ca42=sigma_new_ca42*phi_e_alpha_ca42[d,:] #for a particular depth
+                    I_alpha_ca42=intgrt.trapezoid(intgrnd_alpha_ca42,dfst_ca42['Energy [MeV]'])
+                    P39Ar_alpha_n[d] += N_tg_ca42*I_alpha_ca42
+            else:
+                intgrnd_ev_ca42=sigma_newc_ca42*phi_e_ev_ca42 #for a particular depth
+                I_ev_ca42=intgrt.trapezoid(intgrnd_ev_ca42,dfstc_ca42['Energy'])
+                P39Ar_ev_n += N_tg_ca42*I_ev_ca42
+                #muon
+                intgrnd_mu_ca42=sigma_new_ca42*phi_e_mu_ca42 #for a particular depth
+                I_mu_ca42=intgrt.trapezoid(intgrnd_mu_ca42,dfst_ca42['Energy [MeV]'])
+                P39Ar_mu_n += N_tg_ca42*I_mu_ca42
+                #alpha
+                intgrnd_alpha_ca42=sigma_new_ca42*phi_e_alpha_ca42 #for a particular depth
+                I_alpha_ca42=intgrt.trapezoid(intgrnd_alpha_ca42,dfst_ca42['Energy [MeV]'])
+                P39Ar_alpha_n += N_tg_ca42*I_alpha_ca42 
+
         self.APR.P39Ar_alpha_n=P39Ar_alpha_n #saving to the class attributes
         self.APR.P39Ar_ev_n=P39Ar_ev_n
         self.APR.P39Ar_mu_n=P39Ar_mu_n
@@ -633,20 +745,19 @@ class rock_type:
         #calculate 39Ar yield per muon
         
         #for fc chemical compound factor
-        N_Avog = 6.02214076e23
-        MtZt=0
+        MtWt=0
         for e in self.APR.mu_dict:
-            Mi = self.composition[e]*N_Avog/self.molM_dict[e] #conversion to atomic concentrations
-            Zi = self.Z_dict[e]
-            MtZt += Mi*Zi
+            Mi = self.composition[e]*N_AVOG/self.molM_dict[e] #conversion to atomic concentrations
+            Wi = self.rel_capt_prob[e]
+            MtWt += Mi*Wi
         
         # Total composition weighted average neutron yield
         Y_Ar = 0
         channel_dict = {'K':[.93258,0.015],'Ca':[0.969,0.004]} #isotopic abundace and reation probabbility
         for e in channel_dict.keys():
-            Mi = self.composition[e]*N_Avog/self.molM_dict[e] #conversion to atomic concentrations
-            Zi = self.Z_dict[e]
-            f_c = Mi*Zi/MtZt #chemical compound facotr (for the element)
+            Mi = self.composition[e]*N_AVOG/self.molM_dict[e] #conversion to atomic concentrations
+            Wi = self.rel_capt_prob[e]
+            f_c = Mi*Wi/MtWt #chemical compound factor (for the element)
             f_a = channel_dict[e][0] #abundance of target isotope in element
             f_r = channel_dict[e][1] #reaction probability
             f_d = self.APR.mu_dict[e][0] # nuclear capture probability
@@ -753,12 +864,11 @@ class rock_type:
         #    print('accumulation only works for age in years')
         #if self.APR.units.split('/')[0] != 'atoms':
         #    print('accumulation only works for amount in atoms, change units to atoms/g_rock/yr')
-        lamma_e = 0.581e-10 #1/yr partial decay const. for Ar40
-        lamma_k = 5.463e-10 #1/yr decay constant of K40
-        Ma = 39.964 #molar mass of Ar40
-        Na = 6.023e23 #avogadro constant
-        Xk = 1.176e-4 #isotope ratio 40K/K
-        F = Xk*Na/Ma*lamma_e/lamma_k*(np.exp(lamma_k*age)-1) #as above in Ar40_value except for given age instead of per unit time
+        lamma_e = LAMBDA_K40_TO_AR40 #1/yr partial decay const. for Ar40
+        lamma_k = LAMBDA_K40_TOTAL #1/yr decay constant of K40, magic number from Payton: 5.463e-10, not the same value
+        Ma = MOL_MASS_AR40 #molar mass of Ar40
+        Xk = K40_TO_K_RATIO #isotope ratio 40K/K
+        F = Xk*N_AVOG/Ma*lamma_e/lamma_k*(np.exp(lamma_k*age)-1) #as above in Ar40_value except for given age instead of per unit time
         self.APR.Ar40_accum = self.composition['K']*F 
         self.switch_units(unitsi)
 
@@ -790,10 +900,8 @@ class rock_type:
         '''Calculate the secular equilibrium concentration.'''
         unitsi = self.APR.units
         self.switch_units('atoms/g_rock/yr')
-        t_half = 269.2161339422 #yr-1
-        lamma = np.log(2)/t_half #decay constant
         P = self.APR.Ar39_value
-        Cseq = P/lamma #depth-dependent if Ar39_value is depth-dependent
+        Cseq = P/LAMBDA_AR39 #depth-dependent if Ar39_value is depth-dependent
         self.APR.Cseq = Cseq
 
 def calcHe_prod_rate_refresh(rock_type):
