@@ -139,6 +139,8 @@ class rock_type:
             self.elev=0
             self.depth=0 #in g/cm^2
             self.incl=0
+            self.soilmoisture=0.3 #Vol-percent default value
+            self.icecover = 0 #g/cm^2
             self.Ar40_value = 0
             self.Ar39_value = 0 #total production value
             self.Ar40_accum = 0
@@ -467,9 +469,12 @@ class rock_type:
         inp_file = self.n_sf_spec
         dfsc = pd.read_csv(inp_file) #read in differential neutron flux at surface for specified location (EXPACS spectra)
         Phi_n = intgrt.trapezoid(dfsc['Neutron'],dfsc['Energy']) #integrate for total flux [cm^-2 s^-1)
+        if self.APR.icecover != 0:
+            shielding = snow_shielding(self.APR.soilmoisture, self.APR.icecover)
+            Phi_n = Phi_n*shielding
         Pno = Phi_n/160*3.1556e7 # 160g/cm^2 attenuation lenght in rock for primary cosmogenic neutrons, per second to per year conversion
         #depth in rock like in Fabryka-Martin
-        Lamma_nr = 150 #g/cm2
+        Lamma_nr = 160 #g/cm2 #150 in JFM, 160 in Gosse-Phillips
         K_d = np.exp(-self.APR.depth/Lamma_nr) #exponential decrease with depth
         Pn = K_d*Pno
         self.Pn_ev=Pn # neutrons/g_rock/year
@@ -477,11 +482,11 @@ class rock_type:
     def calcPn_mu(self,K_L=1,K_E=1):
         ''''calculate the neutron flux in n/g_rock/yr for:
                 the given rock type at the given depth in rock column (z) in g/cm2. '''
-        z = self.APR.depth    
+        z = self.APR.depth + self.APR.icecover    
         #calculate stopping rate at depth z
         muk = np.array([[0.8450,1029.6], #relative intensities [-] and attenuation coefficients [g/cm^2]
                [-0.05,161.2],
-               [.0205,3000.4]]) # taken from Musy 2023 supplementaries
+               [0.2050,3000.4]]) # taken from Musy 2023 supplementaries
         
         I_mu0 = 190 #mu/g_rock/yr rate of stopping muons at sea level, high latitudes
         Ikz=0
@@ -727,11 +732,11 @@ class rock_type:
     def calcP39Ar_mu(self,K_L=1,K_E=1):
         ''''calculate the 39Ar production in atoms/g_rock/yr for:
                 the given rock type at the given depth in rock column (z) in g/cm2. '''
-        depth = self.APR.depth 
+        depth = self.APR.depth + self.APR.icecover 
         #calculate stopping rate at depth z
         muk = np.array([[0.8450,1029.6], #relative intensities [-] and attenuation coefficients [g/cm^2]
                [-0.05,161.2],
-               [.0205,3000.4]])  # taken from Musy 2023 supplementaries
+               [0.2050,3000.4]])  # taken from Musy 2023 supplementaries
         
         I_mu0 = 190 #mu/g_rck/yr
         Ikz=0
@@ -927,5 +932,37 @@ def ccSTP_ccRock_yr2kgHE_m3rev_s(value,porosity):
     KgHe_m3rev_yr = KgHe_ccRock_yr /( 1/(1-porosity) * 1e-6) ;
     KgHe_m3rev_s = KgHe_m3rev_yr / 3.15567e7;
     return KgHe_m3rev_s
+
+def snow_shielding(soilm,coverh): # based on Jannis Weimar 2022 and Schaller 2002 for muons
+    # muon attenuation
+    muk = np.array([[0.8450,1030], #relative intensities [-] and attenuation coefficients [g/cm^2]
+               [-0.05,160],
+               [0.2050,3000]]) # taken from Schaller 2002
+    Ikz=0
+    for k in range(muk.shape[0]): #depth-dependance based on 3 coefficients
+        ikk = muk[k,0]*np.exp(-coverh/muk[k,1])
+        Ikz+=ikk
+
+    coverh = coverh*10 #conversion from g/cm^2 to mm SWE to use Jannis Weimar's empirical formula
+    # soilmoisture correction
+    a0 = 3.48 #+-0.48
+    a1 = 0.21 #+-0.02  
+    N0 = (a0 + a1*soilm)/(a0+soilm)
+    # soilmoisture dependence of attenuation of diffusive flux
+    a2= 20.2 #+-1.1 mm
+    a3=10.9 #+-0.3 mm
+    a4=0.12 #+-0.1 
+    lam_n = a2 - (a2-a3)*np.exp(-a4*soilm) #mm
+    # fractions
+    Nm = 0.019 #+-0.001
+    Nn = 0.468 #+-0.007
+    Nh = 0.513 #+- 0.001
+    #attenuation of high-energy flux
+    lamh = 1341 #+-15 mm
+    # total shielding factor
+    Nf = N0*(Nm*Ikz + Nh*np.exp(-coverh/lamh) + Nn*np.exp(-coverh**0.7/lam_n)) 
+    return Nf
+
+
 
     
