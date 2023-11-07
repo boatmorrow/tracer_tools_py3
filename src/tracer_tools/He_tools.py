@@ -786,4 +786,14 @@ def ccSTP_ccRock_yr2kgHE_m3rev_s(value,porosity):
     KgHe_m3rev_s = KgHe_m3rev_yr / 3.15567e7;
     return KgHe_m3rev_s
 
+def FreeAirDiffusionCoeffient(T=20,gas='He4'):
+    '''calculate the free-air diffusion coefficient in atm-cm2/s for the gas of interest for temperature in Celcius.  Gases will be added over time.
+    Source: https://srd.nist.gov/jpcrdreprint/1.3253094.pdf '''
+    T = T + 293.15
+    if gas=='He4':
+        D_a = 3.78e-5*T**1.729
+    
+    
+    return D_a
+
     
