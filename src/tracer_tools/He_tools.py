@@ -16,6 +16,7 @@ from scipy.interpolate import interp1d
 import importlib.resources as pkg_resources
 import os
 import scipy.constants as scic
+import xlwings as xw
 
 #define constants for He_tools
 
@@ -136,11 +137,33 @@ class rock_type:
                 depth in rock column - g/cm2, 
         '''
         def __init__(self):
-            self.elev=0
+            # parameters to calculate neutron flux with Expacs
+            self.elev=2300 #m
+            self.soilmoisture=0.25 #Vol-percent default value
+            self.w_value = 50 #Wolf number for solar activity
+            self.latitude = 50 #degree latitude positiv = north
+            self.excel_file_path = os.path.join(os.path.dirname(__file__), 'EXPACS-eng.xlsx')
+            self.excel = 1 
+            """Default 1, set to 0 if no excel installation is available on your system. The excel attribute activates the 
+            calculation of the surface neutron flux with EXPACS, depending on the other parameters (elev, soilmoisture, w_value, latitude)
+            If deactivated the calculation defaults back to Heidelberg neutron spectrum """
+            #other factors
             self.depth=0 #in g/cm^2
-            self.incl=0
-            self.soilmoisture=0.3 #Vol-percent default value
             self.icecover = 0 #g/cm^2
+            self.top_shielding= 1 #defaults to no shielding from the topography, multiplied to the total production rate
+
+            self.incl=0 # used for surface flux calculation after JFM 
+
+            #additional attributes used in the uncertainty analysis
+            self.K39xsec_noise = 1 #to be multiplied with the cross-section
+            self.Ca42xsec_noise = 1
+            self.stop_rate_noise = 1
+            self.Ar_yield_noise = 1
+            self.n_yield_noise = 1
+            self.P_U_Th_noise = 1
+            self.n_mu_shape_noise = np.array([0])
+            self.n_alpha_shape_noise = np.array([0])
+
             self.Ar40_value = 0
             self.Ar39_value = 0 #total production value
             self.Ar40_accum = 0
@@ -152,7 +175,7 @@ class rock_type:
             self.P39Ar_mu = 0
             #self.P39Ar_value= 0  redundant, named Ar39_value, see above
             #self.P39Ar_accum = 0
-              #set to 1 to include Calcium 42
+            #set to 1 to include Calcium 42
             self.Ca42 = 1 
             self.Ar39_U_Th_value = 0 #direct calculation with Sramek code, can be used for comparison to P39Ar_alpha_n
             self.Cseq = 0
@@ -342,6 +365,28 @@ class rock_type:
         self.porosity = rporosity
         self.density = rdensity
     
+    def get_neutron_flux_from_expacs(self):
+        # Set the file path to expacs
+        file_path = self.APR.excel_file_path
+
+        # Define the input values which will be passed
+        hight = self.APR.elev/1000 #conversion to km
+        latitude = self.APR.latitude #degree
+        w_value = self.APR.w_value #Wolf number
+        soil_water = self.APR.soilmoisture #water volume fraction
+
+        # Define the output range where calculated data will be read 
+        output_range = 'D35:E174' # Energy spectrum and differential neutron flux
+
+        # Pass values to Excel and force calculation
+        pass_values_to_expacs_and_calculate(file_path, hight, latitude, w_value, soil_water)
+
+        # Read the calculated data from Excel
+        expacs_spectrum = read_calculated_data_from_expacs(file_path, output_range)
+
+        return expacs_spectrum #returns 2d numpy array with shape  (140,2), float64
+
+
     def calcPn_alpha(self):
     
         
@@ -422,6 +467,7 @@ class rock_type:
             self.Pn_alpha = Sn/1000.*np.ones(len(self.APR.depth))
         except TypeError:
             self.Pn_alpha=Sn/1000. #neutrons/g_rock/yr #hand shape issues
+        self.Pn_alpha = self.Pn_alpha*self.APR.P_U_Th_noise
 
     def calcPn_ev_JFM(self,solar='avg',Pno=2000):
         '''Estimates neutron production from high-enery cosmic particles. 
@@ -465,10 +511,16 @@ class rock_type:
     def calcPn_ev(self):
         '''calculates the production using the excel worksheet spectral flux and equation
         17 from Musy.  inp_file is the spectral energy flux, right now uses
-        ELEVATION AND LATTITUDE OF HEIDELBERG RIGHT NOW!'''
-        inp_file = self.n_sf_spec
-        dfsc = pd.read_csv(inp_file) #read in differential neutron flux at surface for specified location (EXPACS spectra)
-        Phi_n = intgrt.trapezoid(dfsc['Neutron'],dfsc['Energy']) #integrate for total flux [cm^-2 s^-1)
+        ELEVATION AND LATTITUDE OF HEIDELBERG if self.APR.excel = 0'''
+
+        if self.APR.excel == 0:
+            inp_file = self.n_sf_spec
+            dfsc = pd.read_csv(inp_file) #read in differential neutron flux at surface for specified location (EXPACS spectra)
+            Phi_n = intgrt.trapezoid(dfsc['Neutron'],dfsc['Energy']) #integrate for total flux [cm^-2 s^-1)
+        else:
+            dfsc = self.get_neutron_flux_from_expacs()
+            Phi_n = intgrt.trapezoid(dfsc[:,1],dfsc[:,0]) #integrate for total flux [cm^-2 s^-1)
+
         if self.APR.icecover != 0:
             shielding = snow_shielding(self.APR.soilmoisture, self.APR.icecover)
             Phi_n = Phi_n*shielding
@@ -495,7 +547,7 @@ class rock_type:
             ikk = muk[k,0]*np.exp(-z/muk[k,1])
             Ikz+=ikk
         
-        I_muz = I_mu0*Ikz #depth-dependent stopping rate in #mu/g_rock/yr
+        I_muz = I_mu0*Ikz*self.APR.stop_rate_noise #depth-dependent stopping rate in #mu/g_rock/yr
         
         #calculate neutron yield per muon
         
@@ -515,7 +567,8 @@ class rock_type:
             y_i = self.APR.mu_dict[e][1]
             f_d = self.APR.mu_dict[e][0]
             Y_n += f_c*f_d*y_i
-    
+
+        Y_n = Y_n * self.APR.n_yield_noise
         # Pn
         self.Pn_mu = K_L*K_E*I_muz*Y_n #K_L and K_E set to one currently. No correction for altitude and latitude
     
@@ -564,7 +617,7 @@ class rock_type:
         Will calculate neutron production and flux first if desired, for each channel 
         for the given rock type at the depth in g/cm2, elevation (masl) and magnetic
         inclination.'''
-        nfile=self.n_sf_spec
+        #nfile=self.n_sf_spec
         if calc_flux:
             #self.calcPn_ev_JFM(solar=solar)
             self.calcPn_ev() #calling functions to calculate the different neutron production rates
@@ -572,34 +625,52 @@ class rock_type:
             self.calcPn_alpha()
             self.calc_phi_n() #convert to neutron fluxes (with isotropic assumption & effective attenuation lenghts)
         vflag=1 #sets default for depth-dependent calculation
-        #read in spectral data
+        #read in spectral data: normalized differential flux from Felsenbergkeller (Grieger et al. 2021)
         inp_file = os.path.join(os.path.dirname(__file__), 'Differential_neutron_flux_normalized.csv')
-        dfs = pd.read_csv(inp_file) #neutrons/cm^2/s/MeV
-        #read in cosmic spectral flux from excel sheet for heidelberg lattitude and elevation
-        inp_file = self.n_sf_spec
-        dfsc = pd.read_csv(inp_file) #neutrons/cm^2/s/MeV
-        
+        diff_flux_normal = pd.read_csv(inp_file) #neutrons/cm^2/s/MeV
+        # add noise for uncertainty analysis
+        if len(diff_flux_normal.norm_phi_n_mu_avg) == len(self.APR.n_mu_shape_noise):
+            diff_flux_normal.norm_phi_n_mu_avg += self.APR.n_mu_shape_noise
+            #exclude possible negativ values and renew normalisation
+            diff_flux_normal.norm_phi_n_mu_avg = diff_flux_normal.norm_phi_n_mu_avg.abs()
+            diff_flux_normal.norm_phi_n_mu_avg = diff_flux_normal.norm_phi_n_mu_avg/intgrt.trapezoid(diff_flux_normal.norm_phi_n_mu_avg, diff_flux_normal['Energy [MeV]'])
+        if len(diff_flux_normal.norm_phi_n_alpha_avg) == len(self.APR.n_alpha_shape_noise):
+            diff_flux_normal.norm_phi_n_alpha_avg += self.APR.n_alpha_shape_noise
+            #exclude possible negativ values and renew normalisation
+            diff_flux_normal.norm_phi_n_alpha_avg = diff_flux_normal.norm_phi_n_alpha_avg.abs()
+            diff_flux_normal.norm_phi_n_alpha_avg = diff_flux_normal.norm_phi_n_alpha_avg/intgrt.trapezoid(diff_flux_normal.norm_phi_n_alpha_avg, diff_flux_normal['Energy [MeV]'])
+
+        #read the input cosmic spectral flux from excel sheet for heidelberg lattitude and elevation (diff_flux_inp)
+        if self.APR.excel == 0:
+            inp_file = self.n_sf_spec
+            diff_flux_inp = pd.read_csv(inp_file) #neutrons/cm^2/s/MeV
+        else:
+            spectrum_narray = self.get_neutron_flux_from_expacs()
+            diff_flux_inp = pd.DataFrame({'Energy':spectrum_narray[:,0], 'Neutron': spectrum_narray[:,1]})
+
         #read in the cross section
         inp_file = os.path.join(os.path.dirname(__file__), 'K39_XS.csv')
         K39xsec = pd.read_csv(inp_file)
+        K39xsec['Cross-Section [barns]'] = K39xsec['Cross-Section [barns]']*self.APR.K39xsec_noise
         inp_file = os.path.join(os.path.dirname(__file__), 'Ca42_XS.csv')
         Ca42xsec = pd.read_csv(inp_file)
+        Ca42xsec['Cross-Section [barns]'] = Ca42xsec['Cross-Section [barns]']*self.APR.Ca42xsec_noise
         
         #Potassium production
         
         #truncate to the cross section spectrum
-        dfst=dfs[dfs['Energy [MeV]']<K39xsec['Energy [MeV]'].max()] #for K
-        dfstc = dfsc[dfsc['Energy']<K39xsec['Energy [MeV]'].max()] #for K
+        diff_flux_norm_trunc=diff_flux_normal[diff_flux_normal['Energy [MeV]']<K39xsec['Energy [MeV]'].max()] #for K
+        diff_flux_inp_trunc = diff_flux_inp[diff_flux_inp['Energy']<K39xsec['Energy [MeV]'].max()] #for K
         #calculate normalization (total enegry-integrated fluxes) in units [#n/cm^2/s]
-        Phi_n_mu = intgrt.trapezoid(dfs.norm_phi_n_mu_avg,dfs['Energy [MeV]']) #
-        Phi_n_alpha = intgrt.trapezoid(dfs.norm_phi_n_alpha_avg,dfs['Energy [MeV]'])
-        Phi_n_ev = intgrt.trapezoid(dfsc['Neutron'],dfsc['Energy'])
-        #calculate normalized spectrum in units 1/MeV
-        phibar_mu = dfst.norm_phi_n_mu_avg/Phi_n_mu #
+        Phi_n_mu = intgrt.trapezoid(diff_flux_normal.norm_phi_n_mu_avg,diff_flux_normal['Energy [MeV]']) #
+        Phi_n_alpha = intgrt.trapezoid(diff_flux_normal.norm_phi_n_alpha_avg,diff_flux_normal['Energy [MeV]'])
+        Phi_n_ev = intgrt.trapezoid(diff_flux_inp['Neutron'],diff_flux_inp['Energy'])
+        #calculate normalized spectrum in units 1/MeV (spectral shape)
+        phibar_mu = diff_flux_norm_trunc.norm_phi_n_mu_avg/Phi_n_mu #
         #phibar_mu = dfst.norm_phi_n_mu_avg
-        phibar_alpha = dfst.norm_phi_n_alpha_avg/Phi_n_alpha
+        phibar_alpha = diff_flux_norm_trunc.norm_phi_n_alpha_avg/Phi_n_alpha
         #phibar_alpha = dfst.norm_phi_n_alpha_avg
-        phibar_ev = dfstc['Neutron']/Phi_n_ev
+        phibar_ev = diff_flux_inp_trunc['Neutron']/Phi_n_ev
         
         #spectral phi_e for each depth
         try:
@@ -618,8 +689,8 @@ class rock_type:
         #fit a function to xsec
         f = interp1d(K39xsec['Energy [MeV]'],K39xsec['Cross-Section [barns]']*1e-24)
         #interpolate to neutron flux
-        sigma_new=f(dfst['Energy [MeV]'])
-        sigma_newc=f(dfstc['Energy'])
+        sigma_new=f(diff_flux_norm_trunc['Energy [MeV]'])
+        sigma_newc=f(diff_flux_inp_trunc['Energy'])
         #Fold the energy normalized spectral neutron flux
         P39Ar_ev_n = np.zeros_like(self.phi_n_mu) #create empty arrays in the right shape to hold values
         P39Ar_mu_n = np.zeros_like(self.phi_n_mu)
@@ -634,27 +705,27 @@ class rock_type:
             for d in range(phi_e_mu.shape[0]): 
                 #evaporation
                 intgrnd_ev=sigma_newc*phi_e_ev[d,:] #for a particular depth
-                I_ev=intgrt.trapezoid(intgrnd_ev,dfstc['Energy']) #calculating the folding integral
+                I_ev=intgrt.trapezoid(intgrnd_ev,diff_flux_inp_trunc['Energy']) #calculating the folding integral
                 P39Ar_ev_n[d] = N_tg*I_ev # in units #Argon39/g_rock/vr
                 #muon
                 intgrnd_mu=sigma_new*phi_e_mu[d,:] #for a particular depth
-                I_mu=intgrt.trapezoid(intgrnd_mu,dfst['Energy [MeV]'])
+                I_mu=intgrt.trapezoid(intgrnd_mu,diff_flux_norm_trunc['Energy [MeV]'])
                 P39Ar_mu_n[d] = N_tg*I_mu
                 #alpha
                 intgrnd_alpha=sigma_new*phi_e_alpha[d,:] #for a particular depth
-                I_alpha=intgrt.trapezoid(intgrnd_alpha,dfst['Energy [MeV]'])
+                I_alpha=intgrt.trapezoid(intgrnd_alpha,diff_flux_norm_trunc['Energy [MeV]'])
                 P39Ar_alpha_n[d] = N_tg*I_alpha
         else:
             intgrnd_ev=sigma_newc*phi_e_ev #for a particular depth
-            I_ev=intgrt.trapezoid(intgrnd_ev,dfstc['Energy'])
+            I_ev=intgrt.trapezoid(intgrnd_ev,diff_flux_inp_trunc['Energy'])
             P39Ar_ev_n = N_tg*I_ev
             #muon
             intgrnd_mu=sigma_new*phi_e_mu #for a particular depth
-            I_mu=intgrt.trapezoid(intgrnd_mu,dfst['Energy [MeV]'])
+            I_mu=intgrt.trapezoid(intgrnd_mu,diff_flux_norm_trunc['Energy [MeV]'])
             P39Ar_mu_n = N_tg*I_mu
             #alpha
             intgrnd_alpha=sigma_new*phi_e_alpha #for a particular depth
-            I_alpha=intgrt.trapezoid(intgrnd_alpha,dfst['Energy [MeV]'])
+            I_alpha=intgrt.trapezoid(intgrnd_alpha,diff_flux_norm_trunc['Energy [MeV]'])
             P39Ar_alpha_n = N_tg*I_alpha
         
         #Adds the production rates for Ca42(n,alpha)Ar39
@@ -662,12 +733,12 @@ class rock_type:
             print('Including spallation reactions with Ca42.')
             #truncate to the cross section spectrum
             #dfst=dfs[dfs['Energy [MeV]']<K39xsec['Energy [MeV]'].max()] #for K
-            dfst_ca42=dfs[dfs['Energy [MeV]']<Ca42xsec['Energy [MeV]'].max()] #for Ca
-            dfstc_ca42 = dfsc[dfsc['Energy']<Ca42xsec['Energy [MeV]'].max()] #for Ca
+            diff_flux_norm_trunc_to_ca42=diff_flux_normal[diff_flux_normal['Energy [MeV]']<Ca42xsec['Energy [MeV]'].max()] #for Ca
+            diff_flux_inp_trunc_to_ca42 = diff_flux_inp[diff_flux_inp['Energy']<Ca42xsec['Energy [MeV]'].max()] #for Ca
             #calculate normalized spectrum in units 1/MeV
-            phibar_mu_ca42 = dfst_ca42.norm_phi_n_mu_avg/Phi_n_mu #
-            phibar_alpha_ca42 = dfst_ca42.norm_phi_n_alpha_avg/Phi_n_alpha
-            phibar_ev_ca42 = dfstc_ca42['Neutron']/Phi_n_ev
+            phibar_mu_ca42 = diff_flux_norm_trunc_to_ca42.norm_phi_n_mu_avg/Phi_n_mu #
+            phibar_alpha_ca42 = diff_flux_norm_trunc_to_ca42.norm_phi_n_alpha_avg/Phi_n_alpha
+            phibar_ev_ca42 = diff_flux_inp_trunc_to_ca42['Neutron']/Phi_n_ev
 
             #spectral phi_e for each depth for the spectral length of Ca42
             try:
@@ -686,8 +757,8 @@ class rock_type:
             #fit a function to xsec
             f_ca42 = interp1d(Ca42xsec['Energy [MeV]'],Ca42xsec['Cross-Section [barns]']*1e-24)
             #interpolate to neutron flux
-            sigma_new_ca42=f_ca42(dfst_ca42['Energy [MeV]'])
-            sigma_newc_ca42=f(dfstc_ca42['Energy'])
+            sigma_new_ca42=f_ca42(diff_flux_norm_trunc_to_ca42['Energy [MeV]'])
+            sigma_newc_ca42=f(diff_flux_inp_trunc_to_ca42['Energy'])
             #Fold the energy normalized spectral neutron flux
 
             #calculate target nuclear concentration.
@@ -699,27 +770,27 @@ class rock_type:
                 for d in range(phi_e_mu_ca42.shape[0]): 
                     #evaporation
                     intgrnd_ev_ca42=sigma_newc_ca42*phi_e_ev_ca42[d,:] #for a particular depth
-                    I_ev_ca42=intgrt.trapezoid(intgrnd_ev_ca42,dfstc_ca42['Energy']) #calculating the folding integral
+                    I_ev_ca42=intgrt.trapezoid(intgrnd_ev_ca42,diff_flux_inp_trunc_to_ca42['Energy']) #calculating the folding integral
                     P39Ar_ev_n[d] += N_tg_ca42*I_ev_ca42 # in units #Argon39/g_rock/vr
                     #muon
                     intgrnd_mu_ca42=sigma_new_ca42*phi_e_mu_ca42[d,:] #for a particular depth
-                    I_mu_ca42=intgrt.trapezoid(intgrnd_mu_ca42,dfst_ca42['Energy [MeV]'])
+                    I_mu_ca42=intgrt.trapezoid(intgrnd_mu_ca42,diff_flux_norm_trunc_to_ca42['Energy [MeV]'])
                     P39Ar_mu_n[d] += N_tg_ca42*I_mu_ca42
                     #alpha
                     intgrnd_alpha_ca42=sigma_new_ca42*phi_e_alpha_ca42[d,:] #for a particular depth
-                    I_alpha_ca42=intgrt.trapezoid(intgrnd_alpha_ca42,dfst_ca42['Energy [MeV]'])
+                    I_alpha_ca42=intgrt.trapezoid(intgrnd_alpha_ca42,diff_flux_norm_trunc_to_ca42['Energy [MeV]'])
                     P39Ar_alpha_n[d] += N_tg_ca42*I_alpha_ca42
             else:
                 intgrnd_ev_ca42=sigma_newc_ca42*phi_e_ev_ca42 #for a particular depth
-                I_ev_ca42=intgrt.trapezoid(intgrnd_ev_ca42,dfstc_ca42['Energy'])
+                I_ev_ca42=intgrt.trapezoid(intgrnd_ev_ca42,diff_flux_inp_trunc_to_ca42['Energy'])
                 P39Ar_ev_n += N_tg_ca42*I_ev_ca42
                 #muon
                 intgrnd_mu_ca42=sigma_new_ca42*phi_e_mu_ca42 #for a particular depth
-                I_mu_ca42=intgrt.trapezoid(intgrnd_mu_ca42,dfst_ca42['Energy [MeV]'])
+                I_mu_ca42=intgrt.trapezoid(intgrnd_mu_ca42,diff_flux_norm_trunc_to_ca42['Energy [MeV]'])
                 P39Ar_mu_n += N_tg_ca42*I_mu_ca42
                 #alpha
                 intgrnd_alpha_ca42=sigma_new_ca42*phi_e_alpha_ca42 #for a particular depth
-                I_alpha_ca42=intgrt.trapezoid(intgrnd_alpha_ca42,dfst_ca42['Energy [MeV]'])
+                I_alpha_ca42=intgrt.trapezoid(intgrnd_alpha_ca42,diff_flux_norm_trunc_to_ca42['Energy [MeV]'])
                 P39Ar_alpha_n += N_tg_ca42*I_alpha_ca42 
 
         self.APR.P39Ar_alpha_n=P39Ar_alpha_n #saving to the class attributes
@@ -745,7 +816,7 @@ class rock_type:
             ikk = muk[k,0]*np.exp(-depth/muk[k,1])
             Ikz+=ikk
         
-        I_muz = I_mu0*Ikz
+        I_muz = I_mu0*Ikz*self.APR.stop_rate_noise
         
         #calculate 39Ar yield per muon
         
@@ -768,7 +839,8 @@ class rock_type:
             f_d = self.APR.mu_dict[e][0] # nuclear capture probability
             Y_e = f_a*f_c*f_d*f_r #Ar39 yield for channel e [atoms Ar39/stopped muon]
             Y_Ar += Y_e
-        
+        Y_Ar = Y_Ar*self.APR.Ar_yield_noise
+
         # P39Ar
         self.APR.P39Ar_mu = K_L*K_E*I_muz*Y_Ar #production rate due to direct muon  capture [#Ar39/g_rock/yr]
     
@@ -781,7 +853,7 @@ class rock_type:
         self.calcP39Ar_n(solar=solar,calc_flux=calc_flux)
         #calc the muon production
         self.calcP39Ar_mu()
-        self.APR.Ar39_value=self.APR.P39Ar_n+self.APR.P39Ar_mu
+        self.APR.Ar39_value=(self.APR.P39Ar_n+self.APR.P39Ar_mu)*self.APR.top_shielding
         
     
     def calc39Ar_U_Th_prod(self):
@@ -964,5 +1036,52 @@ def snow_shielding(soilm,coverh): # based on Jannis Weimar 2022 and Schaller 200
     return Nf
 
 
+# defining the functions to access the expacs file and calculate the neutron flux
+def pass_values_to_expacs_and_calculate(file_path, hight, latitude, w_value, soil_water):
+    # Connect to the Excel application
+    app = xw.App()
 
-    
+    # Open the workbook
+    wb = app.books.open(file_path)
+
+    # Access the active sheet (you can specify a sheet by name if needed)
+    sheet = wb.sheets.active
+
+    # Pass input values to the specified range in Excel EXPACS
+    sheet['B7'].value = hight #km
+    sheet['B8'].value = latitude #degree
+    sheet['B10'].value = w_value #solar activity wolf number
+    sheet['B14'].value = soil_water #water fraction as a volume fraction
+
+    # Trigger a recalculation
+    wb.app.calculate()
+
+    # Save the workbook (optional, depending on your needs)
+    wb.save()
+
+    # Close the workbook
+    wb.close()
+
+    # Quit the Excel application
+    app.quit()
+
+def read_calculated_data_from_expacs(file_path, output_range):
+    # Connect to the Excel application
+    app = xw.App()
+
+    # Open the workbook
+    wb = app.books.open(file_path)
+
+    # Access the active sheet (you can specify a sheet by name if needed)
+    sheet = wb.sheets.active
+
+    # Read the calculated data from the specified range in Excel
+    calculated_data = sheet[output_range].options(np.array, expand='table').value
+
+    # Close the workbook
+    wb.close()
+
+    # Quit the Excel application
+    app.quit()
+
+    return calculated_data

@@ -21,6 +21,10 @@ Neutrons (in #Neutrons/cm^2/s/MeV)
 differential neutron flux value
 based on EXPACS from Sato 2015
 input values: ?
+Heidelberg Latitude: 49.4 degr.
+elev 115m
+W_value = ?
+soil water = ? 
 
 K39_XS.csv:
 Energy [MeV] (1e-11 to 60.0 MeV)

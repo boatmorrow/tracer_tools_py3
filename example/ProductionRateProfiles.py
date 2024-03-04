@@ -23,7 +23,13 @@ sramek_granite_composition = {'Li':3.4e-5,  'C':2.3e-4, 'O':0.494, 'F':1.28e-3, 
 Srk_gran=He.rock_type(name='Granite from Sramek 2017', composition=sramek_granite_composition)
 Srk_gran.density = 2.7 #g/cm^3 
 #give depth range
-Srk_gran.APR.depth = np.arange(0,7500,2) #g/cm^2 
+Srk_gran.APR.depth = np.arange(0,7500,2) #g/cm^2
+Srk_gran.APR.excel=1 
+#Approximating Heidelberg input file
+Srk_gran.APR.elev = 115
+Srk_gran.APR.latitude = 49.4
+Srk_gran.APR.w_value=60
+Srk_gran.APR.soilmoisture=0.3
 
 
 #  Running the calculation
