@@ -13,21 +13,28 @@ import matplotlib.pyplot as plt
 
 #set file path for saving results
 parentfolder = 'C:/Users/Fanka Neumann/Documents/Daten/Production_rates'
-sample_name = 'JAM_23-XX'
+sample_name = 'JAM_23-5_groundlevel'
 file_path = parentfolder + '/' + sample_name
 
 #----------------------------------------------------
 
 # defining a rock sample
 
-input_composition = {'Li':3.4e-5,  'C':2.3e-4, 'O':0.494, 'F':1.28e-3, 'Na':0.03, 'Mg':4.72e-3, 'Al':0.0815, \
-                            'Si': 0.318, 'P':  6.11e-4, 'K':0.0370, 'Ca':0.0130, 'Ti': 2.84e-3, 'Fe':0.0185,\
-                            'Sr':4.75e-4, 'Ba': 1.88e-3, 'Th': 2.47e-5, 'U':  1.95e-6 } #Granite from Sramek
+#input_composition = {'Li':3.4e-5,  'C':2.3e-4, 'O':0.494, 'F':1.28e-3, 'Na':0.03, 'Mg':4.72e-3, 'Al':0.0815, \
+#                            'Si': 0.318, 'P':  6.11e-4, 'K':0.0370, 'Ca':0.0130, 'Ti': 2.84e-3, 'Fe':0.0185,\
+#                            'Sr':4.75e-4, 'Ba': 1.88e-3, 'Th': 2.47e-5, 'U':  1.95e-6 } #Granite from Sramek
 
-rock = He.rock_type(composition=input_composition)
-input_density = 2.7 #g/cm^3
+input_composition = {'N':8.3e-5,  'C':1.36e-3, 'O':0.48, 'F':5.57e-4, 'Na':0.0243, 'Mg':0.015, 'Al':0.0815, \
+                            'Si': 0.311, 'P':  6.55e-4, 'K':0.0232, 'Ca':0.0257, 'Ti': 3.84e-3, 'Fe':0.0385,\
+                            'Cl':3.7e-4, 'Mn': 7.74e-4, 'Th': 1.05e-5, 'U':  2.7e-6 } #Average upper crust from Sramek
+
+input_composition['K']=0.0249
+input_composition['Ca'] = 0.0109
+
+rock = He.rock_type(composition=input_composition, MC_flag=1)
+input_density = 2.39 #g/cm^3
 rock.density = input_density
-input_avg_depth_cm = 2.5 #cm average sample depth
+input_avg_depth_cm = 2.0 #cm average sample depth
 input_avg_depth = input_density*input_avg_depth_cm # g/cm^2
 
 #give depth range
@@ -35,15 +42,15 @@ rock.APR.depth = np.arange(0,input_avg_depth,input_avg_depth/50) #g/cm^2
 # enable EXPACS calculation 
 rock.APR.excel=1 
 #Setting location parameters
-input_elev = 2200
+input_elev = 1
 rock.APR.elev = input_elev
-input_latitude = 46.8
+input_latitude = 46.8776
 rock.APR.latitude = input_latitude
 input_w_value = 50
 rock.APR.w_value=input_w_value
 input_soilmoisture = 0.25
 rock.APR.soilmoisture=input_soilmoisture
-input_shielding = 0.97
+input_shielding = 0.9756
 rock.APR.top_shielding = input_shielding
 
 # define the function to reset parameters at the end of one MC iteration
@@ -55,6 +62,7 @@ def resetting_rock_parameters():
     rock.APR.w_value=input_w_value  
     rock.APR.soilmoisture=input_soilmoisture
     rock.APR.top_shielding = input_shielding
+    rock.composition = input_composition
 
 #---------------------------------------------------------------
 
@@ -109,8 +117,8 @@ with open(file_path, 'a') as file:
         file.write("Sample name" + sample_name + "\n" + 'Parameters' + "\n")
         # list of sample parameters
         file.write("density [g/cm3], avg. depth [g/cm2], elev [masl], lat. [degr], w_value [1], soil moist. [m3/m3], shielding factor [1] \n")
-        parameter_string = str(rock.density) + ", " + str(input_avg_depth) + ', ' + str(rock.APR.elev) + ', ' + str(rock.APR.w_value) + \
-        ', ' + str(rock.APR.soilmoisture) + ', ' + str(rock.APR.top_shielding) + '\n'
+        parameter_string = str(rock.density) + ", " + str(input_avg_depth) + ', ' + str(rock.APR.elev) + ', ' + str(rock.APR.latitude)  \
+        + ', ' + str(rock.APR.w_value) + ', ' + str(rock.APR.soilmoisture) + ', ' + str(rock.APR.top_shielding) + '\n'
         file.write(parameter_string + 'Composition: \n')
         # Join keys of the composition dictionary into a single string 
         keys_string = ', '.join(input_composition.keys())
@@ -228,6 +236,7 @@ for i in range(0,iteration_number):
     mc_iteration()
     i += 1
 print('Calculation finished')
+rock.close_excel()
 
 """ plt.figure(figsize=(16,10))
 plt.plot(K39xsec['Energy [MeV]'], K39xsec['Cross-Section [barns]'], color='black', linewidth=2.5, label = 'K39(n,p)Ar39 x-section')

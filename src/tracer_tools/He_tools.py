@@ -49,7 +49,7 @@ CA42_TO_CA_RATIO = 0.00647
 
 class rock_type:
     '''this will be a way to pass around different rock typs'''
-    def __init__(self,name='none',li_capt_prob=0,total_capt_prob=0,composition=0,porosity=0,density=1.):
+    def __init__(self,name='none',li_capt_prob=0,total_capt_prob=0,composition=0,porosity=0,density=1., excel=1, MC_flag=0 ):
         self.name = name;
         self.li_capt_prob = li_capt_prob
         self.total_capt_prob = total_capt_prob
@@ -122,6 +122,16 @@ class rock_type:
                           'Th':3.00,
                           'N':1.02,
                           'Ar':0} # missing value #taken from Alfimov and Ivy-Ochs 2009, table 2
+        # variables to control the excelapplication
+        self.excel_file_path = os.path.join(os.path.dirname(__file__), 'EXPACS-eng.xlsx')
+        self.excel = excel 
+        """Default 1, set to 0 if no excel installation is available on your system. The excel attribute activates the 
+        calculation of the surface neutron flux with EXPACS, depending on the other parameters (elev, soilmoisture, w_value, latitude)
+        If deactivated the calculation defaults back to Heidelberg neutron spectrum """
+        self.MC_flag = MC_flag # Excel application is closed if set to zero
+        if self.excel == 1:
+            self.app = xw.App()
+            self.wb =  self.app.books.open(self.excel_file_path)
 
     class He_prod_rate:
         '''the production rate for a given rock composition of 3he 4he in given units'''
@@ -142,11 +152,7 @@ class rock_type:
             self.soilmoisture=0.25 #Vol-percent default value
             self.w_value = 50 #Wolf number for solar activity
             self.latitude = 50 #degree latitude positiv = north
-            self.excel_file_path = os.path.join(os.path.dirname(__file__), 'EXPACS-eng.xlsx')
-            self.excel = 1 
-            """Default 1, set to 0 if no excel installation is available on your system. The excel attribute activates the 
-            calculation of the surface neutron flux with EXPACS, depending on the other parameters (elev, soilmoisture, w_value, latitude)
-            If deactivated the calculation defaults back to Heidelberg neutron spectrum """
+ 
             #other factors
             self.depth=0 #in g/cm^2
             self.icecover = 0 #g/cm^2
@@ -163,6 +169,7 @@ class rock_type:
             self.P_U_Th_noise = 1
             self.n_mu_shape_noise = np.array([0])
             self.n_alpha_shape_noise = np.array([0])
+            
 
             self.Ar40_value = 0
             self.Ar39_value = 0 #total production value
@@ -366,8 +373,6 @@ class rock_type:
         self.density = rdensity
     
     def get_neutron_flux_from_expacs(self):
-        # Set the file path to expacs
-        file_path = self.APR.excel_file_path
 
         # Define the input values which will be passed
         hight = self.APR.elev/1000 #conversion to km
@@ -378,14 +383,36 @@ class rock_type:
         # Define the output range where calculated data will be read 
         output_range = 'D35:E174' # Energy spectrum and differential neutron flux
 
+        # Access the active sheet (you can specify a sheet by name if needed)
+        sheet = self.wb.sheets.active
+        # Pass input values to the specified range in Excel EXPACS
+        sheet['B7'].value = hight #km
+        sheet['B8'].value = latitude #degree
+        sheet['B10'].value = w_value #solar activity wolf number
+        sheet['B14'].value = soil_water #water fraction as a volume fraction
+
+        # Trigger a recalculation
+        self.wb.app.calculate()
+
+        expacs_spectrum = sheet[output_range].options(np.array, expand='table').value
+
+        if self.MC_flag == 0:
+            self.close_excel()
+
         # Pass values to Excel and force calculation
-        pass_values_to_expacs_and_calculate(file_path, hight, latitude, w_value, soil_water)
+        #pass_values_to_expacs_and_calculate(file_path, hight, latitude, w_value, soil_water)
 
         # Read the calculated data from Excel
-        expacs_spectrum = read_calculated_data_from_expacs(file_path, output_range)
+        #expacs_spectrum = read_calculated_data_from_expacs(file_path, output_range)
 
         return expacs_spectrum #returns 2d numpy array with shape  (140,2), float64
 
+    def close_excel(self):
+        self.wb.save()
+        self.wb.close()
+        self.app.quit()
+
+    
 
     def calcPn_alpha(self):
     
@@ -513,7 +540,7 @@ class rock_type:
         17 from Musy.  inp_file is the spectral energy flux, right now uses
         ELEVATION AND LATTITUDE OF HEIDELBERG if self.APR.excel = 0'''
 
-        if self.APR.excel == 0:
+        if self.excel == 0:
             inp_file = self.n_sf_spec
             dfsc = pd.read_csv(inp_file) #read in differential neutron flux at surface for specified location (EXPACS spectra)
             Phi_n = intgrt.trapezoid(dfsc['Neutron'],dfsc['Energy']) #integrate for total flux [cm^-2 s^-1)
@@ -641,7 +668,7 @@ class rock_type:
             diff_flux_normal.norm_phi_n_alpha_avg = diff_flux_normal.norm_phi_n_alpha_avg/intgrt.trapezoid(diff_flux_normal.norm_phi_n_alpha_avg, diff_flux_normal['Energy [MeV]'])
 
         #read the input cosmic spectral flux from excel sheet for heidelberg lattitude and elevation (diff_flux_inp)
-        if self.APR.excel == 0:
+        if self.excel == 0:
             inp_file = self.n_sf_spec
             diff_flux_inp = pd.read_csv(inp_file) #neutrons/cm^2/s/MeV
         else:
