@@ -10,10 +10,11 @@ import os
 import scipy.constants as scic
 import tracer_tools.He_tools as He
 import matplotlib.pyplot as plt
+import copy 
 
 #set file path for saving results
 parentfolder = 'C:/Users/Fanka Neumann/Documents/Daten/Production_rates'
-sample_name = 'JAM_23-5_groundlevel'
+sample_name = 'Aro_1'
 file_path = parentfolder + '/' + sample_name
 
 #----------------------------------------------------
@@ -28,13 +29,13 @@ input_composition = {'N':8.3e-5,  'C':1.36e-3, 'O':0.48, 'F':5.57e-4, 'Na':0.024
                             'Si': 0.311, 'P':  6.55e-4, 'K':0.0232, 'Ca':0.0257, 'Ti': 3.84e-3, 'Fe':0.0385,\
                             'Cl':3.7e-4, 'Mn': 7.74e-4, 'Th': 1.05e-5, 'U':  2.7e-6 } #Average upper crust from Sramek
 
-input_composition['K']=0.0249
-input_composition['Ca'] = 0.0109
+input_composition['K']=0.0122
+input_composition['Ca'] = 0.0082
 
 rock = He.rock_type(composition=input_composition, MC_flag=1)
-input_density = 2.39 #g/cm^3
+input_density = 2.6 #g/cm^3
 rock.density = input_density
-input_avg_depth_cm = 2.0 #cm average sample depth
+input_avg_depth_cm = 3.5 #cm average sample depth
 input_avg_depth = input_density*input_avg_depth_cm # g/cm^2
 
 #give depth range
@@ -42,15 +43,15 @@ rock.APR.depth = np.arange(0,input_avg_depth,input_avg_depth/50) #g/cm^2
 # enable EXPACS calculation 
 rock.APR.excel=1 
 #Setting location parameters
-input_elev = 1
+input_elev = 2387
 rock.APR.elev = input_elev
-input_latitude = 46.8776
+input_latitude = 46.01824
 rock.APR.latitude = input_latitude
 input_w_value = 50
 rock.APR.w_value=input_w_value
 input_soilmoisture = 0.25
 rock.APR.soilmoisture=input_soilmoisture
-input_shielding = 0.9756
+input_shielding = 0.977
 rock.APR.top_shielding = input_shielding
 
 # define the function to reset parameters at the end of one MC iteration
@@ -76,7 +77,7 @@ Ar39_avg_prod_rate = intgrt.trapezoid(rock.APR.Ar39_value, rock.APR.depth)/input
 
 # setting the uncertainties (1 sigma relative or absolute deviation)
 avg_depth_cm_error = 0.5 #abs
-density_error = 0.2 #abs.
+density_error = 0.3 #abs.
 soil_moisture_error = 0.05 #absolute deviation
 w_number_error = 40 #abs.
 altitude_error = 0.5 #abs
@@ -86,9 +87,9 @@ ar_yield_per_mu_uncy = 0.1 #rel
 mu_stop_rate_uncy = 0.3 #rel
 n_yield_per_mu_uncy = 0.1 #rel
 P_n_UTh_uncy = 0.3 #rel
-K_uncy = 0.05 #rel
-Ca_uncy = 0.05 #rel
-comp_uncy = 0.2 #rel
+K_uncy = 0.07 #rel
+Ca_uncy = 0.07 #rel
+comp_uncy = 0.3 #rel
 
 # flag for varying depth         
 depth_flag = 1 
@@ -190,7 +191,7 @@ def mc_iteration():
 
     # vary composition
     exclude_entries = ['K', 'Ca', 'O']
-    varied_composition = input_composition
+    varied_composition = copy.deepcopy(input_composition)
     for key, value in varied_composition.items():
         if key not in exclude_entries:
             value = abs(value*np.random.normal(1,comp_uncy))
@@ -231,10 +232,10 @@ def mc_iteration():
     resetting_rock_parameters()
 
 # run the iteration
-iteration_number = 5
+iteration_number = 500
 for i in range(0,iteration_number):
     mc_iteration()
-    i += 1
+    i += 1    
 print('Calculation finished')
 rock.close_excel()
 
