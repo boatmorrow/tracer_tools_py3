@@ -147,6 +147,8 @@ class rock_type:
                 depth in rock column - g/cm2, 
         '''
         def __init__(self):
+            self.xsec = 'xsec_data/TENDL-2019.csv' #cross section file from TENDL as default
+            self.xsec_Ca42 = 'xsec_data/Ca42_XS_TENDL2019.csv'
             # parameters to calculate neutron flux with Expacs
             self.elev=2300 #m
             self.soilmoisture=0.25 #Vol-percent default value
@@ -161,8 +163,8 @@ class rock_type:
             self.incl=0 # used for surface flux calculation after JFM 
 
             #additional attributes used in the uncertainty analysis
-            self.K39xsec_noise = 1 #to be multiplied with the cross-section
-            self.Ca42xsec_noise = 1
+            self.K39xsec_noise = np.array([0]) #to be multiplied with the cross-section
+            self.Ca42xsec_noise = np.array([0])
             self.stop_rate_noise = 1
             self.Ar_yield_noise = 1
             self.n_yield_noise = 1
@@ -676,18 +678,36 @@ class rock_type:
             diff_flux_inp = pd.DataFrame({'Energy':spectrum_narray[:,0], 'Neutron': spectrum_narray[:,1]})
 
         #read in the cross section
-        inp_file = os.path.join(os.path.dirname(__file__), 'K39_XS.csv')
-        K39xsec = pd.read_csv(inp_file)
-        K39xsec['Cross-Section [barns]'] = K39xsec['Cross-Section [barns]']*self.APR.K39xsec_noise
-        inp_file = os.path.join(os.path.dirname(__file__), 'Ca42_XS.csv')
-        Ca42xsec = pd.read_csv(inp_file)
-        Ca42xsec['Cross-Section [barns]'] = Ca42xsec['Cross-Section [barns]']*self.APR.Ca42xsec_noise
+        inp_file = os.path.join(os.path.dirname(__file__), self.APR.xsec)
+        K39xsec = pd.read_csv(inp_file, delimiter=';', header=0, names=['energy','xsection'])
+        if self.APR.xsec != 'xsec_data/K39_XS_Musy.csv':
+            K39xsec.energy = K39xsec.energy*10**-6
+            print('Assuming energy in xsec file given in eV. Multiplying e-6 to convert to MeV')
+        if len(K39xsec.energy)==len(self.APR.K39xsec_noise):
+            K39xsec['xsection'] += self.APR.K39xsec_noise
+
+        inp_file = os.path.join(os.path.dirname(__file__), self.APR.xsec_Ca42)
+        Ca42xsec = pd.read_csv(inp_file, delimiter=';',header=0, names=['energy','xsection'])
+        if self.APR.xsec_Ca42 != 'xsec_data/Ca42_XS_Musy.csv':
+            Ca42xsec.energy = Ca42xsec.energy*10**-6
+            print('Assuming energy in Ca42 xsec file given in eV. Multiplying e-6 to convert to MeV')
+        if len(Ca42xsec.energy)==len(self.APR.Ca42xsec_noise):
+            Ca42xsec['xsection'] +=self.APR.Ca42xsec_noise
         
         #Potassium production
         
         #truncate to the cross section spectrum
-        diff_flux_norm_trunc=diff_flux_normal[diff_flux_normal['Energy [MeV]']<K39xsec['Energy [MeV]'].max()] #for K
-        diff_flux_inp_trunc = diff_flux_inp[diff_flux_inp['Energy']<K39xsec['Energy [MeV]'].max()] #for K
+        #truncating upper bound
+        diff_flux_norm_trunc=diff_flux_normal[diff_flux_normal['Energy [MeV]']<K39xsec['energy'].max()] #for K
+        diff_flux_inp_trunc = diff_flux_inp[diff_flux_inp['Energy']<K39xsec['energy'].max()] #for K
+        #truncate lower bound
+        energy_lowbound = K39xsec['energy'].iloc[0]
+        start_index = diff_flux_norm_trunc[diff_flux_norm_trunc['Energy [MeV]']>=energy_lowbound].index[0]
+        diff_flux_norm_trunc = diff_flux_norm_trunc.loc[start_index:].reset_index(drop=True)
+        start_index = diff_flux_inp_trunc[diff_flux_inp_trunc['Energy']>=energy_lowbound].index[0]
+        diff_flux_inp_trunc = diff_flux_inp_trunc.loc[start_index:].reset_index(drop=True)
+
+
         #calculate normalization (total enegry-integrated fluxes) in units [#n/cm^2/s]
         Phi_n_mu = intgrt.trapezoid(diff_flux_normal.norm_phi_n_mu_avg,diff_flux_normal['Energy [MeV]']) #
         Phi_n_alpha = intgrt.trapezoid(diff_flux_normal.norm_phi_n_alpha_avg,diff_flux_normal['Energy [MeV]'])
@@ -714,7 +734,7 @@ class rock_type:
             phi_e_ev = self.phi_n_ev*phibar_ev
             
         #fit a function to xsec
-        f = interp1d(K39xsec['Energy [MeV]'],K39xsec['Cross-Section [barns]']*1e-24)
+        f = interp1d(K39xsec['energy'],K39xsec['xsection']*1e-24)
         #interpolate to neutron flux
         sigma_new=f(diff_flux_norm_trunc['Energy [MeV]'])
         sigma_newc=f(diff_flux_inp_trunc['Energy'])
@@ -756,16 +776,24 @@ class rock_type:
             P39Ar_alpha_n = N_tg*I_alpha
         
         #Adds the production rates for Ca42(n,alpha)Ar39
+        
         if self.APR.Ca42 != 0:
-            print('Including spallation reactions with Ca42.')
+            #print('Including spallation reactions with Ca42.')
             #truncate to the cross section spectrum
-            #dfst=dfs[dfs['Energy [MeV]']<K39xsec['Energy [MeV]'].max()] #for K
-            diff_flux_norm_trunc_to_ca42=diff_flux_normal[diff_flux_normal['Energy [MeV]']<Ca42xsec['Energy [MeV]'].max()] #for Ca
-            diff_flux_inp_trunc_to_ca42 = diff_flux_inp[diff_flux_inp['Energy']<Ca42xsec['Energy [MeV]'].max()] #for Ca
+            diff_flux_norm_trunc_ca42=diff_flux_normal[diff_flux_normal['Energy [MeV]']<Ca42xsec['energy'].max()] #for Ca
+            diff_flux_inp_trunc_ca42 = diff_flux_inp[diff_flux_inp['Energy']<Ca42xsec['energy'].max()] #for Ca
+            #truncate lower bound
+            energy_lowbound = Ca42xsec['energy'].iloc[0]
+            start_index = diff_flux_norm_trunc_ca42[diff_flux_norm_trunc_ca42['Energy [MeV]']>=energy_lowbound].index[0]
+            diff_flux_norm_trunc_ca42 = diff_flux_norm_trunc_ca42.loc[start_index:].reset_index(drop=True)
+            start_index = diff_flux_inp_trunc_ca42[diff_flux_inp_trunc_ca42['Energy']>=energy_lowbound].index[0]
+            diff_flux_inp_trunc_ca42 = diff_flux_inp_trunc_ca42.loc[start_index:].reset_index(drop=True)
+
+
             #calculate normalized spectrum in units 1/MeV
-            phibar_mu_ca42 = diff_flux_norm_trunc_to_ca42.norm_phi_n_mu_avg/Phi_n_mu #
-            phibar_alpha_ca42 = diff_flux_norm_trunc_to_ca42.norm_phi_n_alpha_avg/Phi_n_alpha
-            phibar_ev_ca42 = diff_flux_inp_trunc_to_ca42['Neutron']/Phi_n_ev
+            phibar_mu_ca42 = diff_flux_norm_trunc_ca42.norm_phi_n_mu_avg/Phi_n_mu #
+            phibar_alpha_ca42 = diff_flux_norm_trunc_ca42.norm_phi_n_alpha_avg/Phi_n_alpha
+            phibar_ev_ca42 = diff_flux_inp_trunc_ca42['Neutron']/Phi_n_ev
 
             #spectral phi_e for each depth for the spectral length of Ca42
             try:
@@ -782,10 +810,10 @@ class rock_type:
                 phi_e_ev_ca42 = self.phi_n_ev*phibar_ev_ca42
 
             #fit a function to xsec
-            f_ca42 = interp1d(Ca42xsec['Energy [MeV]'],Ca42xsec['Cross-Section [barns]']*1e-24)
+            f_ca42 = interp1d(Ca42xsec['energy'],Ca42xsec['xsection']*1e-24)
             #interpolate to neutron flux
-            sigma_new_ca42=f_ca42(diff_flux_norm_trunc_to_ca42['Energy [MeV]'])
-            sigma_newc_ca42=f(diff_flux_inp_trunc_to_ca42['Energy'])
+            sigma_new_ca42=f_ca42(diff_flux_norm_trunc_ca42['Energy [MeV]'])
+            sigma_newc_ca42=f_ca42(diff_flux_inp_trunc_ca42['Energy'])
             #Fold the energy normalized spectral neutron flux
 
             #calculate target nuclear concentration.
@@ -797,27 +825,27 @@ class rock_type:
                 for d in range(phi_e_mu_ca42.shape[0]): 
                     #evaporation
                     intgrnd_ev_ca42=sigma_newc_ca42*phi_e_ev_ca42[d,:] #for a particular depth
-                    I_ev_ca42=intgrt.trapezoid(intgrnd_ev_ca42,diff_flux_inp_trunc_to_ca42['Energy']) #calculating the folding integral
+                    I_ev_ca42=intgrt.trapezoid(intgrnd_ev_ca42,diff_flux_inp_trunc_ca42['Energy']) #calculating the folding integral
                     P39Ar_ev_n[d] += N_tg_ca42*I_ev_ca42 # in units #Argon39/g_rock/vr
                     #muon
                     intgrnd_mu_ca42=sigma_new_ca42*phi_e_mu_ca42[d,:] #for a particular depth
-                    I_mu_ca42=intgrt.trapezoid(intgrnd_mu_ca42,diff_flux_norm_trunc_to_ca42['Energy [MeV]'])
+                    I_mu_ca42=intgrt.trapezoid(intgrnd_mu_ca42,diff_flux_norm_trunc_ca42['Energy [MeV]'])
                     P39Ar_mu_n[d] += N_tg_ca42*I_mu_ca42
                     #alpha
                     intgrnd_alpha_ca42=sigma_new_ca42*phi_e_alpha_ca42[d,:] #for a particular depth
-                    I_alpha_ca42=intgrt.trapezoid(intgrnd_alpha_ca42,diff_flux_norm_trunc_to_ca42['Energy [MeV]'])
+                    I_alpha_ca42=intgrt.trapezoid(intgrnd_alpha_ca42,diff_flux_norm_trunc_ca42['Energy [MeV]'])
                     P39Ar_alpha_n[d] += N_tg_ca42*I_alpha_ca42
             else:
                 intgrnd_ev_ca42=sigma_newc_ca42*phi_e_ev_ca42 #for a particular depth
-                I_ev_ca42=intgrt.trapezoid(intgrnd_ev_ca42,diff_flux_inp_trunc_to_ca42['Energy'])
+                I_ev_ca42=intgrt.trapezoid(intgrnd_ev_ca42,diff_flux_inp_trunc_ca42['Energy'])
                 P39Ar_ev_n += N_tg_ca42*I_ev_ca42
                 #muon
                 intgrnd_mu_ca42=sigma_new_ca42*phi_e_mu_ca42 #for a particular depth
-                I_mu_ca42=intgrt.trapezoid(intgrnd_mu_ca42,diff_flux_norm_trunc_to_ca42['Energy [MeV]'])
+                I_mu_ca42=intgrt.trapezoid(intgrnd_mu_ca42,diff_flux_norm_trunc_ca42['Energy [MeV]'])
                 P39Ar_mu_n += N_tg_ca42*I_mu_ca42
                 #alpha
                 intgrnd_alpha_ca42=sigma_new_ca42*phi_e_alpha_ca42 #for a particular depth
-                I_alpha_ca42=intgrt.trapezoid(intgrnd_alpha_ca42,diff_flux_norm_trunc_to_ca42['Energy [MeV]'])
+                I_alpha_ca42=intgrt.trapezoid(intgrnd_alpha_ca42,diff_flux_norm_trunc_ca42['Energy [MeV]'])
                 P39Ar_alpha_n += N_tg_ca42*I_alpha_ca42 
 
         self.APR.P39Ar_alpha_n=P39Ar_alpha_n #saving to the class attributes

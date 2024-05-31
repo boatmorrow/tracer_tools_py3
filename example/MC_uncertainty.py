@@ -14,7 +14,7 @@ import copy
 
 #set file path for saving results
 parentfolder = 'C:/Users/Fanka Neumann/Documents/Daten/Production_rates'
-sample_name = 'Aro_1'
+sample_name = 'Jam-23-5'
 file_path = parentfolder + '/' + sample_name
 
 #----------------------------------------------------
@@ -29,13 +29,13 @@ input_composition = {'N':8.3e-5,  'C':1.36e-3, 'O':0.48, 'F':5.57e-4, 'Na':0.024
                             'Si': 0.311, 'P':  6.55e-4, 'K':0.0232, 'Ca':0.0257, 'Ti': 3.84e-3, 'Fe':0.0385,\
                             'Cl':3.7e-4, 'Mn': 7.74e-4, 'Th': 1.05e-5, 'U':  2.7e-6 } #Average upper crust from Sramek
 
-input_composition['K']=0.0122
-input_composition['Ca'] = 0.0082
+input_composition['K']=0.0249
+input_composition['Ca'] = 0.0109
 
 rock = He.rock_type(composition=input_composition, MC_flag=1)
-input_density = 2.6 #g/cm^3
+input_density = 2.39 #g/cm^3
 rock.density = input_density
-input_avg_depth_cm = 3.5 #cm average sample depth
+input_avg_depth_cm = 2.0 #cm average sample depth
 input_avg_depth = input_density*input_avg_depth_cm # g/cm^2
 
 #give depth range
@@ -43,15 +43,15 @@ rock.APR.depth = np.arange(0,input_avg_depth,input_avg_depth/50) #g/cm^2
 # enable EXPACS calculation 
 rock.APR.excel=1 
 #Setting location parameters
-input_elev = 2387
+input_elev = 2318
 rock.APR.elev = input_elev
-input_latitude = 46.01824
+input_latitude = 46.8776
 rock.APR.latitude = input_latitude
 input_w_value = 50
 rock.APR.w_value=input_w_value
 input_soilmoisture = 0.25
 rock.APR.soilmoisture=input_soilmoisture
-input_shielding = 0.977
+input_shielding = 0.9756
 rock.APR.top_shielding = input_shielding
 
 # define the function to reset parameters at the end of one MC iteration
@@ -76,8 +76,8 @@ Ar39_avg_prod_rate = intgrt.trapezoid(rock.APR.Ar39_value, rock.APR.depth)/input
 #-------------------------------------------------------------
 
 # setting the uncertainties (1 sigma relative or absolute deviation)
-avg_depth_cm_error = 0.5 #abs
-density_error = 0.3 #abs.
+avg_depth_cm_error = 1.5 #abs
+density_error = 0.21 #abs.
 soil_moisture_error = 0.05 #absolute deviation
 w_number_error = 40 #abs.
 altitude_error = 0.5 #abs
@@ -115,7 +115,7 @@ with open(file_path, 'a') as file:
     if not file_exists:
         # If the file doesn't exist, write the header
         #sample name
-        file.write("Sample name" + sample_name + "\n" + 'Parameters' + "\n")
+        file.write("Sample name " + sample_name + "\n" + 'Parameters' + "\n")
         # list of sample parameters
         file.write("density [g/cm3], avg. depth [g/cm2], elev [masl], lat. [degr], w_value [1], soil moist. [m3/m3], shielding factor [1] \n")
         parameter_string = str(rock.density) + ", " + str(input_avg_depth) + ', ' + str(rock.APR.elev) + ', ' + str(rock.APR.latitude)  \
@@ -157,13 +157,27 @@ with open(file_path, 'a') as file:
 current_dir = os.path.dirname(os.path.abspath(__file__)) #path to current folder (example)
 parent_dir = os.path.dirname(current_dir) #path to parent directory (tracer_tools_py3)
 # path to the xsec-files in the parallel folder
+
 # read in K39-cross-section: 
-inp_file = os.path.join(parent_dir, 'data', 'K39_XS.csv')
-K39xsec = pd.read_csv(inp_file)
-print(K39xsec.shape) #should be (660,2)
+inp_file = os.path.join(parent_dir, 'data', 'xsec_data', 'TENDL-2019.csv')
+K39xsec = pd.read_csv(inp_file, delimiter=';', header=0, names=['energy','xsection'])
+K39xsec.energy = K39xsec.energy*10**-6
+print('Converting energy from eV to MeV')
+inp_file = os.path.join(parent_dir, 'data', 'xsec_data', 'Interpolated_Cross_Sections.csv')
+K39deviation = pd.read_csv(inp_file, delimiter=',', header=0, names=['energy', 'xsec', 'minxsec', 'maxxsec'])
+K39deviation.energy = K39deviation.energy*10**-6
+K39Std_plus = (K39deviation.maxxsec - K39deviation.xsec)/2
+K39Std_minus = (K39deviation.xsec - K39deviation.minxsec)/2
+print(K39xsec.shape) 
+
 #read in Ca42 cross-section
-inp_file = os.path.join(parent_dir, 'data', 'Ca42_XS.csv')
-Ca42xsec = pd.read_csv(inp_file)
+inp_file = os.path.join(parent_dir, 'data/xsec_data', 'Ca42_XS_TENDL2019.csv')
+Ca42xsec = pd.read_csv(inp_file , delimiter=';', header=0, names=['energy','xsection'])
+Ca42xsec.energy = Ca42xsec.energy*10**-6
+print('Converting energy from eV to MeV')
+inp_file = os.path.join(parent_dir, 'data/xsec_data', 'Ca42_Xsec_wStd_TENDL2019.csv')
+Ca42deviation = pd.read_csv(inp_file, delimiter=';', header=0, names=['energy', 'xsec','Std'])
+Ca42deviation.energy = Ca42deviation.energy*10**-6
 
 #read in spectral data: normalized differential flux from Felsenbergkeller (Grieger et al. 2021)
 inp_file = os.path.join(parent_dir, 'data', 'Differential_neutron_flux_normalized.csv')
@@ -171,11 +185,7 @@ diff_flux_normal = pd.read_csv(inp_file) #neutrons/cm^2/s/MeV
 mu_shape_deviation = abs(diff_flux_normal['norm_phi_n_mu_avg']-diff_flux_normal['norm_phi_n_mu_MK1'])
 alpha_shape_deviation = abs(diff_flux_normal['norm_phi_n_alpha_avg']-diff_flux_normal['norm_phi_n_alpha_MK1'])
 
-def gaussian_noise_weights(df, column_name, relative_intensity):
-    column_values = df[column_name]
-    noise = np.random.normal(1, relative_intensity, len(column_values)) #mean 1, standard deviation, length of array
-    noise[noise < 0] = 0 # set negativ values to zero
-    return noise
+
 
 def mc_iteration():
     # vary sample parameters
@@ -204,8 +214,13 @@ def mc_iteration():
 
     # cross-sections 
     #add variation to cross-section
-    rock.APR.K39xsec_noise = gaussian_noise_weights(K39xsec, 'Cross-Section [barns]', xsec_relative_intensity) # uncertainty set above
-    rock.APR.Ca42xsec_noise = gaussian_noise_weights(Ca42xsec, 'Cross-Section [barns]', xsec_relative_intensity)
+    scaling = np.random.normal(0,1)
+    if scaling >= 0:
+        rock.APR.K39xsec_noise = K39Std_plus*scaling
+    else:
+        rock.APR.K39xsec_noise=K39Std_minus*scaling
+    scalingCa = np.random.normal(0,1)
+    rock.APR.Ca42xsec_noise = scalingCa*Ca42deviation.Std
 
     # muon parameters
     rock.APR.Ar_yield_noise = abs(np.random.normal(1,ar_yield_per_mu_uncy))
@@ -216,8 +231,9 @@ def mc_iteration():
     rock.APR.P_U_Th_noise = abs(np.random.normal(1,P_n_UTh_uncy))
 
     # spectral shape of alpha- and muon induced neutrons
-    rock.APR.n_mu_shape_noise = np.random.normal(0, mu_shape_deviation)
-    rock.APR.n_alpha_shape_noise = np.random.normal(0, alpha_shape_deviation)
+    rock.APR.n_mu_shape_noise = np.random.normal(0, 1)*mu_shape_deviation
+    rock.APR.n_alpha_shape_noise = np.random.normal(0, 1)*alpha_shape_deviation
+
 
     # running the calculation
     rock.calcAr_prod_rate_whole_rock(solar='avg',calc_flux=1)
@@ -235,41 +251,7 @@ def mc_iteration():
 iteration_number = 500
 for i in range(0,iteration_number):
     mc_iteration()
-    i += 1    
+    i += 1 
+    print(i)   
 print('Calculation finished')
 rock.close_excel()
-
-""" plt.figure(figsize=(16,10))
-plt.plot(K39xsec['Energy [MeV]'], K39xsec['Cross-Section [barns]'], color='black', linewidth=2.5, label = 'K39(n,p)Ar39 x-section')
-plt.plot(Ca42xsec['Energy [MeV]'], Ca42xsec['Cross-Section [barns]'], color='red', linewidth=2.5, label='Ca42(n,alpha)Ar39 x-section')
-# add the noise 
-i = 0
-for i in range(5):
-    K39xsec_var = gaussian_noise_weights(K39xsec, column_name, relative_intensity)*K39xsec['Cross-Section [barns]']
-    plt.plot(K39xsec['Energy [MeV]'], K39xsec_var, color='blue', linestyle='dashed', alpha=0.5)
-    Ca42xsec_var = gaussian_noise_weights(Ca42xsec, column_name, relative_intensity)*Ca42xsec['Cross-Section [barns]']
-    plt.plot(Ca42xsec['Energy [MeV]'], Ca42xsec_var, color='magenta', linestyle='dashed', alpha=0.5)
-    i +=1
-plt.title('Reaction cross-sections for Ar39 production, with 5 iterations of added gaussian white noise, relative intensity 0.28')
-plt.xlabel('Energy [MeV]')
-plt.xscale('log')
-plt.ylabel('Cross-section [barns]')
-plt.yscale('log')
-plt.legend()
-plt.show() """
-
-""" variables  
-#variablen: (multiplied)
-
-# self.APR.stop_rate_noise  
-# self.APR.Ar_yield_noise = 1
-# self.APR.n_yield_noise = 1
-# self.APR.P_U_Th_noise = 1
-
-# self.composition
-
-# variablen: added
-# self.APR.n_mu_shape_noise
-# self.APR.n_alpha_shape_noise"""
-
-# reset parameters to original before new setting

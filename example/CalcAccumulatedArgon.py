@@ -34,7 +34,7 @@ UC.switch_units('ccSTP/g_rock/yr')
 print('Accumulated Argon is %1.3g'%UC.APR.Ar40_accum, '/'.join(UC.APR.units.split('/')[0:2]))
 
 #desired amount of Argon
-V_d = 1e-4 #ccSTP - 10 microliters of Argon
+V_d = 3e-3 #ccSTP - 3 microliters of Argon
 
 #release fraction V_rel/V_tot
 xi = .8 #temperature dependent
