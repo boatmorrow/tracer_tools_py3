@@ -13,8 +13,13 @@ import matplotlib.pyplot as plt
 import copy 
 
 #set file path for saving results
-parentfolder = 'C:/Users/Fanka Neumann/Documents/Daten/Production_rates'
-sample_name = 'Jam-23-5'
+#"C:/Users/Franka/Documents/Masterarbeit/Produktionsraten"
+parentfolder = "C:/Users/Fanka Neumann/Documents"
+#cross-section
+xsec_names = ['TENDL-2019', 'Brond-3_1', 'ENDF_B-VIII_0', 'JEFF-3_3', 'JENDL-He-2007', 'K39_XS_Musy']
+x =0
+#'C:/Users/Fanka Neumann/Documents/Daten/Production_rates'
+sample_name = 'Stei-10_'+xsec_names[x]+'_test'
 file_path = parentfolder + '/' + sample_name
 
 #----------------------------------------------------
@@ -29,35 +34,39 @@ input_composition = {'N':8.3e-5,  'C':1.36e-3, 'O':0.48, 'F':5.57e-4, 'Na':0.024
                             'Si': 0.311, 'P':  6.55e-4, 'K':0.0232, 'Ca':0.0257, 'Ti': 3.84e-3, 'Fe':0.0385,\
                             'Cl':3.7e-4, 'Mn': 7.74e-4, 'Th': 1.05e-5, 'U':  2.7e-6 } #Average upper crust from Sramek
 
-input_composition['K']=0.0249
-input_composition['Ca'] = 0.0109
+input_composition['K']=0.0234
+input_composition['Ca'] = 0.0102
 
 rock = He.rock_type(composition=input_composition, MC_flag=1)
-input_density = 2.39 #g/cm^3
+input_density = 2.5 #g/cm^3
 rock.density = input_density
-input_avg_depth_cm = 2.0 #cm average sample depth
+input_avg_depth_cm = 3.2 #cm average sample depth
 input_avg_depth = input_density*input_avg_depth_cm # g/cm^2
+#input_avg_depth = 30000 #g/cm^2
+
+#chose cross-section:
+rock.APR.xsec = 'xsec_data/'+xsec_names[x]+'.csv'
 
 #give depth range
-rock.APR.depth = np.arange(0,input_avg_depth,input_avg_depth/50) #g/cm^2
+rock.APR.depth = np.arange(0,input_avg_depth,input_avg_depth/500) #g/cm^2
 # enable EXPACS calculation 
 rock.APR.excel=1 
 #Setting location parameters
-input_elev = 2318
+input_elev = 2055
 rock.APR.elev = input_elev
-input_latitude = 46.8776
+input_latitude = 46.72657
 rock.APR.latitude = input_latitude
 input_w_value = 50
 rock.APR.w_value=input_w_value
 input_soilmoisture = 0.25
 rock.APR.soilmoisture=input_soilmoisture
-input_shielding = 0.9756
+input_shielding = 0.981
 rock.APR.top_shielding = input_shielding
 
 # define the function to reset parameters at the end of one MC iteration
 def resetting_rock_parameters():
     rock.density = input_density
-    rock.APR.depth = np.arange(0,input_avg_depth,input_avg_depth/50) #g/cm^2
+    rock.APR.depth = np.arange(0,input_avg_depth,input_avg_depth/500) #g/cm^2
     rock.APR.elev = input_elev
     rock.APR.latitude = input_latitude
     rock.APR.w_value=input_w_value  
@@ -76,8 +85,8 @@ Ar39_avg_prod_rate = intgrt.trapezoid(rock.APR.Ar39_value, rock.APR.depth)/input
 #-------------------------------------------------------------
 
 # setting the uncertainties (1 sigma relative or absolute deviation)
-avg_depth_cm_error = 1.5 #abs
-density_error = 0.21 #abs.
+avg_depth_cm_error = 0.5 #abs
+density_error = 0.5 #abs.
 soil_moisture_error = 0.05 #absolute deviation
 w_number_error = 40 #abs.
 altitude_error = 0.5 #abs
@@ -92,7 +101,7 @@ Ca_uncy = 0.07 #rel
 comp_uncy = 0.3 #rel
 
 # flag for varying depth         
-depth_flag = 1 
+depth_flag = 1
 #if flag=0 depth is not varied to calculate the uncertainties for a depth-dependant production rate profile
 #if flag not 0 depth is varied to account for the uncertainty of a specific sample geometry. Only sample averaged production rate is saved. 
 
@@ -131,7 +140,7 @@ with open(file_path, 'a') as file:
         file.write('Argon 39 production rate [atoms/g/yr] (avg, depth-dependant) \n')
         depth_str = 'avg, '+ np.array2string(rock.APR.depth, separator=', ', max_line_width=800)+'\n'
         file.write(depth_str)
-        prod_rate_str = str(Ar39_avg_prod_rate) + ', ' + np.array2string(rock.APR.Ar39_value, separator=', ', max_line_width=800) + '\n'
+        prod_rate_str = str(Ar39_avg_prod_rate) + ', ' + np.array2string(rock.APR.Ar39_value, separator=', ', max_line_width=40000) + '\n'
         file.write(prod_rate_str)
         # writing down the uncertainties
         file.write('1 sigma - uncertainties, relative value unless specified \n')
@@ -193,7 +202,9 @@ def mc_iteration():
     if depth_flag == 1:
         avg_depth_cm = abs(np.random.normal(input_avg_depth_cm, avg_depth_cm_error))
         avg_depth = avg_depth_cm*rock.density
-        rock.APR.depth = np.arange(0,avg_depth,avg_depth/50) #g/cm^2
+        rock.APR.depth = np.arange(0,avg_depth,avg_depth/500) #g/cm^2
+    else:
+        avg_depth = input_avg_depth
     rock.APR.soilmoisture = abs(np.random.normal(rock.APR.soilmoisture, soil_moisture_error))
     rock.APR.w_value = abs(np.random.normal(rock.APR.w_value, w_number_error))
     rock.APR.elev = abs(np.random.normal(rock.APR.elev, altitude_error))
@@ -214,13 +225,15 @@ def mc_iteration():
 
     # cross-sections 
     #add variation to cross-section
+    """
     scaling = np.random.normal(0,1)
     if scaling >= 0:
         rock.APR.K39xsec_noise = K39Std_plus*scaling
     else:
-        rock.APR.K39xsec_noise=K39Std_minus*scaling
+        rock.APR.K39xsec_noise=K39Std_minus*scaling """
+    
     scalingCa = np.random.normal(0,1)
-    rock.APR.Ca42xsec_noise = scalingCa*Ca42deviation.Std
+    rock.APR.Ca42xsec_noise = scalingCa*Ca42deviation.Std 
 
     # muon parameters
     rock.APR.Ar_yield_noise = abs(np.random.normal(1,ar_yield_per_mu_uncy))
@@ -241,17 +254,18 @@ def mc_iteration():
     Ar39_avg_prod_rate = intgrt.trapezoid(rock.APR.Ar39_value, rock.APR.depth)/avg_depth
 
     if depth_flag == 0:
-        write_to_file(file_path, str(Ar39_avg_prod_rate) + ', ' +  np.array2string(rock.APR.Ar39_value, separator=', ', max_line_width=800))
+        write_to_file(file_path, str(Ar39_avg_prod_rate) + ', ' +  np.array2string(rock.APR.Ar39_value, separator=', ', max_line_width=400000))
     else:
         write_to_file(file_path, str(Ar39_avg_prod_rate))
 
     resetting_rock_parameters()
 
 # run the iteration
-iteration_number = 500
+iteration_number = 10
 for i in range(0,iteration_number):
     mc_iteration()
     i += 1 
-    print(i)   
+    print(i)
+    print(len(rock.APR.Ar39_value))   
 print('Calculation finished')
 rock.close_excel()

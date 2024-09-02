@@ -49,7 +49,7 @@ CA42_TO_CA_RATIO = 0.00647
 
 class rock_type:
     '''this will be a way to pass around different rock typs'''
-    def __init__(self,name='none',li_capt_prob=0,total_capt_prob=0,composition=0,porosity=0,density=1., excel=1, MC_flag=0 ):
+    def __init__(self,name='none',li_capt_prob=0,total_capt_prob=1e-6,composition=0,porosity=0,density=1., excel=1, MC_flag=0 ):
         self.name = name;
         self.li_capt_prob = li_capt_prob
         self.total_capt_prob = total_capt_prob
@@ -884,14 +884,18 @@ class rock_type:
         
         # Total composition weighted average neutron yield
         Y_Ar = 0
-        channel_dict = {'K':[.93258,0.015],'Ca':[0.969,0.004]} #isotopic abundace and reation probabbility
+        channel_dict = {'K':[.93258,0.15],'Ca':[0.969,0.004], 'Ca2':[0.021,0.06]} #isotopic abundace and reation probabbility
         for e in channel_dict.keys():
-            Mi = self.composition[e]*N_AVOG/self.molM_dict[e] #conversion to atomic concentrations
-            Wi = self.rel_capt_prob[e]
+            if e == 'Ca2':
+                el = 'Ca'
+            else:
+                el = e
+            Mi = self.composition[el]*N_AVOG/self.molM_dict[el] #conversion to atomic concentrations
+            Wi = self.rel_capt_prob[el]
             f_c = Mi*Wi/MtWt #chemical compound factor (for the element)
             f_a = channel_dict[e][0] #abundance of target isotope in element
             f_r = channel_dict[e][1] #reaction probability
-            f_d = self.APR.mu_dict[e][0] # nuclear capture probability
+            f_d = self.APR.mu_dict[el][0] # nuclear capture probability
             Y_e = f_a*f_c*f_d*f_r #Ar39 yield for channel e [atoms Ar39/stopped muon]
             Y_Ar += Y_e
         Y_Ar = Y_Ar*self.APR.Ar_yield_noise
