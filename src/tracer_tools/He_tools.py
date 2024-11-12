@@ -455,26 +455,32 @@ class rock_type:
         (6.0*Na + 2.45*Mg + 2.55*Al + 0.56*Si + 0.83*C) + 0.4788*U; #total neutron flux
         rthree_He_prod = neut_flux*(self.li_capt_prob/self.total_capt_prob); #atoms/g_rock/yr
         rfour_He_prod = (3.115e6+1.272e5)*U + 7.710e5*Th;  #atoms/g_rock/yr
-        self.HPR.units = 'atoms/g_rock/yr';
+        if self.HPR.units != 'atoms/g_rock/yr':
+            self.switch_units('atoms/g_rock/yr')
+        else:
+            self.HPR.units = 'atoms/g_rock/yr';
         self.HPR.three_He_value = rthree_He_prod;
         self.HPR.four_He_value = rfour_He_prod;
         self.HPR.neut_flux = neut_flux
 
     def calcAr_prod_rate_whole_rock(self,solar='avg',calc_flux=1):
         '''calculate the modern day production rate for a given rock type.  
-        The 39Ar production for a given rock type at the given 
+        The 39Ar and 40Ar production for a given rock type at the given 
         at the elevation (masl), inclination (magnetic), depth (g/cm2), and 
         solar activity (one of (max,min,avg).'''
         lamma_e = 0.581e-10
         lamma_k = 5.463e-10
         Ma = 39.964
         Na = 6.023e23
-        Xk = 1.176e-4
+        Xk = 1.167e-4
         F = Xk*Na/Ma*lamma_e/lamma_k*(np.exp(lamma_k*1)-1)
         self.APR.Ar40_value = self.composition['K']*F 
         #pdb.set_trace()
         self.calc39Ar_prod(solar=solar,calc_flux=calc_flux)
-        self.APR.units ='atoms/g_rock/yr'
+        if self.APR.units != 'atoms/g_rock/yr':
+            self.switch_units('atoms/g_rock/yr')
+        else:
+            self.APR.units = 'atoms/g_rock/yr'
     
     def calcP39Ar_n(self,solar='avg',calc_flux=1,nfile=os.path.join(os.path.dirname(__file__), 'HeidelbergNeutronFlux.csv')):
         '''calculate the total 39Ar production from neutrons fora all channels.
