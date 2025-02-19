@@ -4,7 +4,7 @@ import scipy
 import pylab
 import pdb
 from scipy.interpolate import interp1d
-from scipy.integrate import trapz
+from scipy.integrate import trapezoid as trapz
 from matplotlib.dates import date2num
 import datetime
 import lmfit as lm
